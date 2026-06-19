@@ -1105,7 +1105,7 @@ export default function ProjectDetailPage({
                           {item.statusHistory && item.statusHistory.length > 0 && (
                             <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '6px', borderTop: '1px dashed var(--border)', paddingTop: '4px' }}>
                               <span style={{ fontWeight: '600' }}>Status History:</span>
-                              {item.statusHistory.map((h: any) => (
+                              {item.statusHistory.map((h) => (
                                 <div key={h.id} style={{ whiteSpace: 'nowrap' }}>
                                   {new Date(h.updatedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}: {h.previousStatus} ➔ {h.newStatus}
                                 </div>

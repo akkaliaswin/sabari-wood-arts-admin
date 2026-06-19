@@ -1,5 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { Prisma, Project, WorkItem, MaterialPurchase, LabourCost } from '@prisma/client';
+
+export interface ReportRow {
+  projectId: string;
+  projectCode: string;
+  projectName: string;
+  clientName: string;
+  clientCode: string;
+  revenue: number;
+  materialCost: number;
+  labourCost: number;
+  profit: number;
+  marginPercentage: number;
+}
+
+export type ProjectReportPayload = Project & {
+  client: {
+    id: string;
+    name: string;
+    clientCode: string;
+  };
+  workItems: WorkItem[];
+  materialPurchases: MaterialPurchase[];
+  labourCosts: LabourCost[];
+};
 
 export async function GET(req: NextRequest) {
   try {
@@ -11,7 +36,7 @@ export async function GET(req: NextRequest) {
     const workType = searchParams.get('workType') || '';
 
     // Build query filters for projects
-    const projectWhereClause: any = {
+    const projectWhereClause: Prisma.ProjectWhereInput = {
       deletedAt: null,
       client: {
         deletedAt: null,
@@ -26,7 +51,7 @@ export async function GET(req: NextRequest) {
     }
 
     // Fetch matching projects with sub-resources
-    const projects = await prisma.project.findMany({
+    const projects: ProjectReportPayload[] = await prisma.project.findMany({
       where: projectWhereClause,
       include: {
         client: {
@@ -42,7 +67,7 @@ export async function GET(req: NextRequest) {
         materialPurchases: true,
         labourCosts: true,
       },
-    });
+    }) as unknown as ProjectReportPayload[];
 
     const parsedStart = startDate ? new Date(startDate) : null;
     const parsedEnd = endDate ? new Date(endDate) : null;
@@ -54,14 +79,14 @@ export async function GET(req: NextRequest) {
     let totalMaterialCost = 0;
     let totalLabourCost = 0;
 
-    const reportRows: any[] = [];
+    const reportRows: ReportRow[] = [];
 
     // Aggregate report data dynamically
-    projects.forEach((proj) => {
+    projects.forEach((proj: ProjectReportPayload) => {
       // 1. Filter and sum Work Items (Revenue)
       let projWorkItems = proj.workItems;
       if (parsedStart || parsedEnd) {
-        projWorkItems = projWorkItems.filter((item) => {
+        projWorkItems = projWorkItems.filter((item: WorkItem) => {
           const itemDate = new Date(item.createdAt);
           if (parsedStart && itemDate < parsedStart) return false;
           if (parsedEnd && itemDate > parsedEnd) return false;
@@ -69,21 +94,21 @@ export async function GET(req: NextRequest) {
         });
       }
       
-      const projRevenue = projWorkItems.reduce((sum, item) => sum + Number(item.sellingPrice), 0);
+      const projRevenue = projWorkItems.reduce((sum: number, item: WorkItem) => sum + Number(item.sellingPrice), 0);
       
       // Get set of matching work item IDs to filter expenses
-      const matchedWorkItemIds = new Set(projWorkItems.map((item) => item.id));
+      const matchedWorkItemIds = new Set(projWorkItems.map((item: WorkItem) => item.id));
 
       // 2. Filter and sum Material Purchases
       let projMaterials = proj.materialPurchases;
       
       // If workType filter is active, only count materials linked to matched work items
       if (workType) {
-        projMaterials = projMaterials.filter((m) => m.workItemId && matchedWorkItemIds.has(m.workItemId));
+        projMaterials = projMaterials.filter((m: MaterialPurchase) => m.workItemId && matchedWorkItemIds.has(m.workItemId));
       }
       
       if (parsedStart || parsedEnd) {
-        projMaterials = projMaterials.filter((m) => {
+        projMaterials = projMaterials.filter((m: MaterialPurchase) => {
           const mDate = new Date(m.purchaseDate);
           if (parsedStart && mDate < parsedStart) return false;
           if (parsedEnd && mDate > parsedEnd) return false;
@@ -91,18 +116,18 @@ export async function GET(req: NextRequest) {
         });
       }
       
-      const projMaterialCost = projMaterials.reduce((sum, m) => sum + Number(m.amount), 0);
+      const projMaterialCost = projMaterials.reduce((sum: number, m: MaterialPurchase) => sum + Number(m.amount), 0);
 
       // 3. Filter and sum Labour Costs
       let projLabour = proj.labourCosts;
       
       // If workType filter is active, only count labour linked to matched work items
       if (workType) {
-        projLabour = projLabour.filter((l) => l.workItemId && matchedWorkItemIds.has(l.workItemId));
+        projLabour = projLabour.filter((l: LabourCost) => l.workItemId && matchedWorkItemIds.has(l.workItemId));
       }
       
       if (parsedStart || parsedEnd) {
-        projLabour = projLabour.filter((l) => {
+        projLabour = projLabour.filter((l: LabourCost) => {
           const lDate = new Date(l.paymentDate);
           if (parsedStart && lDate < parsedStart) return false;
           if (parsedEnd && lDate > parsedEnd) return false;
@@ -110,7 +135,7 @@ export async function GET(req: NextRequest) {
         });
       }
       
-      const projLabourCost = projLabour.reduce((sum, l) => sum + Number(l.amount), 0);
+      const projLabourCost = projLabour.reduce((sum: number, l: LabourCost) => sum + Number(l.amount), 0);
 
       // Calculate totals for project row
       const profit = projRevenue - projMaterialCost - projLabourCost;
@@ -150,7 +175,7 @@ export async function GET(req: NextRequest) {
       },
       rows: reportRows,
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error generating reports:', error);
     return NextResponse.json({ error: 'Failed to generate reports' }, { status: 500 });
   }

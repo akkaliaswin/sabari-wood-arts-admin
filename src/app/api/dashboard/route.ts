@@ -1,10 +1,18 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { Project, WorkItem, Payment, MaterialPurchase, LabourCost } from '@prisma/client';
+
+export interface ProjectWithRelations extends Project {
+  workItems: WorkItem[];
+  payments: Payment[];
+  materialPurchases: MaterialPurchase[];
+  labourCosts: LabourCost[];
+}
 
 export async function GET() {
   try {
     // Fetch all non-deleted projects with their related items for aggregation
-    const allProjects = await prisma.project.findMany({
+    const allProjects: ProjectWithRelations[] = await prisma.project.findMany({
       where: {
         deletedAt: null,
         client: {
@@ -17,38 +25,38 @@ export async function GET() {
         materialPurchases: true,
         labourCosts: true,
       },
-    });
+    }) as unknown as ProjectWithRelations[];
 
     const activeStatuses = ['Lead', 'Measurement Done', 'Quotation Sent', 'Advance Received', 'Production', 'Installation', 'On Hold'];
-    const activeProjects = allProjects.filter((p: any) => activeStatuses.includes(p.status));
+    const activeProjects = allProjects.filter((p: ProjectWithRelations) => activeStatuses.includes(p.status));
 
     // Computations
     const totalActiveProjects = activeProjects.length;
 
     // Active project quoted value
-    const totalProjectValue = activeProjects.reduce((sum, p) => sum + Number(p.quotedAmount), 0);
+    const totalProjectValue = activeProjects.reduce((sum: number, p: ProjectWithRelations) => sum + Number(p.quotedAmount), 0);
 
     // Payments received (all-time / global)
     const totalCollectionsReceived = allProjects.reduce(
-      (sum, p) => sum + p.payments.reduce((s, pay) => s + Number(pay.amount), 0),
+      (sum: number, p: ProjectWithRelations) => sum + p.payments.reduce((s: number, pay: Payment) => s + Number(pay.amount), 0),
       0
     );
 
     // Global revenue = sum of sellingPrice of all work items in non-deleted projects
     const totalRevenue = allProjects.reduce(
-      (sum, p) => sum + p.workItems.reduce((s, item) => s + Number(item.sellingPrice), 0),
+      (sum: number, p: ProjectWithRelations) => sum + p.workItems.reduce((s: number, item: WorkItem) => s + Number(item.sellingPrice), 0),
       0
     );
 
     // Material cost (all-time)
     const totalMaterialCost = allProjects.reduce(
-      (sum, p) => sum + p.materialPurchases.reduce((s, mat) => s + Number(mat.amount), 0),
+      (sum: number, p: ProjectWithRelations) => sum + p.materialPurchases.reduce((s: number, mat: MaterialPurchase) => s + Number(mat.amount), 0),
       0
     );
 
     // Labour cost (all-time)
     const totalLabourCost = allProjects.reduce(
-      (sum, p) => sum + p.labourCosts.reduce((s, lab) => s + Number(lab.amount), 0),
+      (sum: number, p: ProjectWithRelations) => sum + p.labourCosts.reduce((s: number, lab: LabourCost) => s + Number(lab.amount), 0),
       0
     );
 
@@ -57,33 +65,33 @@ export async function GET() {
     const averageMargin = totalRevenue > 0 ? (grossProfit / totalRevenue) * 100 : 0;
 
     // Pending collections on active projects: Quoted Amount - Payments Received (summed per active project)
-    const pendingCollections = activeProjects.reduce((sum, p) => {
-      const pPayments = p.payments.reduce((s, pay) => s + Number(pay.amount), 0);
+    const pendingCollections = activeProjects.reduce((sum: number, p: ProjectWithRelations) => {
+      const pPayments = p.payments.reduce((s: number, pay: Payment) => s + Number(pay.amount), 0);
       const pending = Number(p.quotedAmount) - pPayments;
       return sum + (pending > 0 ? pending : 0);
     }, 0);
 
     // Gross margin for active projects = Total Active Quoted Value - Active Material Costs - Active Labor Costs
     const activeMaterialCost = activeProjects.reduce(
-      (sum, p) => sum + p.materialPurchases.reduce((s, mat) => s + Number(mat.amount), 0),
+      (sum: number, p: ProjectWithRelations) => sum + p.materialPurchases.reduce((s: number, mat: MaterialPurchase) => s + Number(mat.amount), 0),
       0
     );
     const activeLabourCost = activeProjects.reduce(
-      (sum, p) => sum + p.labourCosts.reduce((s, lab) => s + Number(lab.amount), 0),
+      (sum: number, p: ProjectWithRelations) => sum + p.labourCosts.reduce((s: number, lab: LabourCost) => s + Number(lab.amount), 0),
       0
     );
     const grossMarginEstimate = totalProjectValue - activeMaterialCost - activeLabourCost;
 
     // Calculate Most Profitable Work Type (All time)
     const workTypeStats: Record<string, { revenue: number; cost: number; profit: number }> = {};
-    allProjects.forEach((p) => {
-      p.workItems.forEach((item) => {
+    allProjects.forEach((p: ProjectWithRelations) => {
+      p.workItems.forEach((item: WorkItem) => {
         const itemMaterials = p.materialPurchases
-          .filter((m) => m.workItemId === item.id)
-          .reduce((sum, m) => sum + Number(m.amount), 0);
+          .filter((m: MaterialPurchase) => m.workItemId === item.id)
+          .reduce((sum: number, m: MaterialPurchase) => sum + Number(m.amount), 0);
         const itemLabour = p.labourCosts
-          .filter((l) => l.workItemId === item.id)
-          .reduce((sum, l) => sum + Number(l.amount), 0);
+          .filter((l: LabourCost) => l.workItemId === item.id)
+          .reduce((sum: number, l: LabourCost) => sum + Number(l.amount), 0);
 
         const type = item.workType;
         const sellPrice = Number(item.sellingPrice);
@@ -100,7 +108,7 @@ export async function GET() {
 
     let mostProfitableWorkType = 'None';
     let maxWorkTypeProfit = -Infinity;
-    Object.entries(workTypeStats).forEach(([type, data]) => {
+    Object.entries(workTypeStats).forEach(([type, data]: [string, { revenue: number; cost: number; profit: number }]) => {
       if (data.profit > maxWorkTypeProfit) {
         maxWorkTypeProfit = data.profit;
         mostProfitableWorkType = type;
@@ -113,10 +121,10 @@ export async function GET() {
     // Calculate Most Profitable Project (All time)
     let mostProfitableProject = 'None';
     let maxProjectProfit = -Infinity;
-    allProjects.forEach((p) => {
-      const pRevenue = p.workItems.reduce((sum, item) => sum + Number(item.sellingPrice), 0);
-      const pMaterials = p.materialPurchases.reduce((sum, m) => sum + Number(m.amount), 0);
-      const pLabour = p.labourCosts.reduce((sum, l) => sum + Number(l.amount), 0);
+    allProjects.forEach((p: ProjectWithRelations) => {
+      const pRevenue = p.workItems.reduce((sum: number, item: WorkItem) => sum + Number(item.sellingPrice), 0);
+      const pMaterials = p.materialPurchases.reduce((sum: number, m: MaterialPurchase) => sum + Number(m.amount), 0);
+      const pLabour = p.labourCosts.reduce((sum: number, l: LabourCost) => sum + Number(l.amount), 0);
       const pProfit = pRevenue - pMaterials - pLabour;
 
       if (pProfit > maxProjectProfit) {
@@ -140,7 +148,7 @@ export async function GET() {
       'On Hold': 0,
       Cancelled: 0,
     };
-    allProjects.forEach((p) => {
+    allProjects.forEach((p: ProjectWithRelations) => {
       const status = p.status;
       if (status in pipelineCounts) {
         pipelineCounts[status as keyof typeof pipelineCounts]++;
@@ -159,14 +167,14 @@ export async function GET() {
 
     // Retrieve all labour cost logs
     const allLabourCosts = await prisma.labourCost.findMany();
-    const globalTotalLabourCost = allLabourCosts.reduce((sum, cost) => sum + Number(cost.amount), 0);
+    const globalTotalLabourCost = allLabourCosts.reduce((sum: number, cost: LabourCost) => sum + Number(cost.amount), 0);
     const labourCostThisMonth = allLabourCosts
-      .filter((cost) => new Date(cost.paymentDate) >= startOfThisMonth)
-      .reduce((sum, cost) => sum + Number(cost.amount), 0);
+      .filter((cost: LabourCost) => new Date(cost.paymentDate) >= startOfThisMonth)
+      .reduce((sum: number, cost: LabourCost) => sum + Number(cost.amount), 0);
 
     // Highest paid labourer calculation
     const labourerPayments: Record<string, { name: string; amount: number }> = {};
-    allLabourCosts.forEach((cost) => {
+    allLabourCosts.forEach((cost: LabourCost) => {
       const key = cost.labourerId || 'legacy';
       const name = cost.carpenterName;
       if (!labourerPayments[key]) {
@@ -177,7 +185,7 @@ export async function GET() {
 
     let highestPaidLabourer = 'None';
     let highestPaidAmount = 0;
-    Object.values(labourerPayments).forEach((data) => {
+    Object.values(labourerPayments).forEach((data: { name: string; amount: number }) => {
       if (data.amount > highestPaidAmount) {
         highestPaidAmount = data.amount;
         highestPaidLabourer = `${data.name} (₹${data.amount.toLocaleString('en-IN')})`;
@@ -212,7 +220,7 @@ export async function GET() {
         highestPaidLabourer,
       },
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error fetching dashboard metrics:', error);
     return NextResponse.json({ error: 'Failed to fetch dashboard metrics' }, { status: 500 });
   }
