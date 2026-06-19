@@ -1,5 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { Project, Prisma } from '@prisma/client';
+
+type ProjectWithPayments = Project & {
+  payments: { amount: Prisma.Decimal }[];
+  client: {
+    id: string;
+    name: string;
+    clientCode: string;
+    phone: string;
+  };
+};
 
 export async function GET(req: NextRequest) {
   try {
@@ -42,8 +53,8 @@ export async function GET(req: NextRequest) {
     });
 
     // Map projects to include calculated simple fields (like total payments received so far)
-    const formattedProjects = projects.map((p) => {
-      const receivedAmount = p.payments.reduce((sum, pay) => sum + Number(pay.amount), 0);
+    const formattedProjects = (projects as unknown as ProjectWithPayments[]).map((p: ProjectWithPayments) => {
+      const receivedAmount = p.payments.reduce((sum: number, pay: { amount: Prisma.Decimal }) => sum + Number(pay.amount), 0);
       const pendingCollection = Number(p.quotedAmount) - receivedAmount;
       return {
         ...p,
@@ -53,7 +64,7 @@ export async function GET(req: NextRequest) {
     });
 
     return NextResponse.json(formattedProjects);
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error fetching projects:', error);
     return NextResponse.json({ error: 'Failed to fetch projects' }, { status: 500 });
   }
@@ -95,7 +106,7 @@ export async function POST(req: NextRequest) {
     });
 
     return NextResponse.json(newProject, { status: 201 });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error creating project:', error);
     return NextResponse.json({ error: 'Failed to create project' }, { status: 500 });
   }
