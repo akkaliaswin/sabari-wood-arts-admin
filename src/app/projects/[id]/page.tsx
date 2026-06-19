@@ -68,6 +68,18 @@ interface LabourCost {
   labourer: { id: string; name: string; labourCode: string } | null;
 }
 
+interface LabourerListItem {
+  id: string;
+  name: string;
+  labourCode: string;
+  skillType: string;
+  phone: string;
+  activeStatus: boolean;
+  joiningDate: string;
+  address: string | null;
+  notes: string | null;
+}
+
 interface ProjectDetail {
   id: string;
   projectCode: string;
@@ -164,7 +176,7 @@ export default function ProjectDetailPage({
   const [labSubmitting, setLabSubmitting] = useState(false);
 
   // Labour Master link lists
-  const [labourersList, setLabourersList] = useState<any[]>([]);
+  const [labourersList, setLabourersList] = useState<LabourerListItem[]>([]);
   const [selectedLabourerId, setSelectedLabourerId] = useState('');
   const [showLabourerModal, setShowLabourerModal] = useState(false);
 

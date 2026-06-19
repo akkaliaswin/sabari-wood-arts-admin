@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { LabourCost } from '@prisma/client';
 
 export async function GET(
   req: NextRequest,
@@ -38,10 +39,10 @@ export async function GET(
     }
 
     // Dynamic metrics
-    const totalPaid = labourer.labourCosts.reduce((sum, cost) => sum + Number(cost.amount), 0);
+    const totalPaid = labourer.labourCosts.reduce((sum: number, cost: LabourCost) => sum + Number(cost.amount), 0);
     
     // Unique projects worked on
-    const uniqueProjectIds = new Set(labourer.labourCosts.map(cost => cost.projectId));
+    const uniqueProjectIds = new Set(labourer.labourCosts.map((cost: LabourCost) => cost.projectId));
     const projectsCount = uniqueProjectIds.size;
 
     return NextResponse.json({
@@ -49,7 +50,7 @@ export async function GET(
       totalPaid,
       projectsCount,
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error fetching labourer details:', error);
     return NextResponse.json({ error: 'Failed to fetch labourer details' }, { status: 500 });
   }
@@ -82,7 +83,7 @@ export async function PUT(
     });
 
     return NextResponse.json(updatedLabourer);
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error updating labourer profile:', error);
     return NextResponse.json({ error: 'Failed to update labourer profile' }, { status: 500 });
   }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { WorkItem, MaterialPurchase, Payment, LabourCost } from '@prisma/client';
 
 export async function GET(
   req: NextRequest,
@@ -79,19 +80,19 @@ export async function GET(
     }
 
     // Dynamic calculations
-    const receivedAmount = project.payments.reduce((sum, p) => sum + Number(p.amount), 0);
-    const materialCost = project.materialPurchases.reduce((sum, m) => sum + Number(m.amount), 0);
-    const labourCost = project.labourCosts.reduce((sum, l) => sum + Number(l.amount), 0);
+    const receivedAmount = project.payments.reduce((sum: number, p: Payment) => sum + Number(p.amount), 0);
+    const materialCost = project.materialPurchases.reduce((sum: number, m: MaterialPurchase) => sum + Number(m.amount), 0);
+    const labourCost = project.labourCosts.reduce((sum: number, l: LabourCost) => sum + Number(l.amount), 0);
     
     // Map work items to compute item profitability dynamically
-    const formattedWorkItems = project.workItems.map((item) => {
+    const formattedWorkItems = project.workItems.map((item: WorkItem) => {
       const itemMaterials = project.materialPurchases
-        .filter((m) => m.workItemId === item.id)
-        .reduce((sum, m) => sum + Number(m.amount), 0);
+        .filter((m: MaterialPurchase) => m.workItemId === item.id)
+        .reduce((sum: number, m: MaterialPurchase) => sum + Number(m.amount), 0);
         
       const itemLabour = project.labourCosts
-        .filter((l) => l.workItemId === item.id)
-        .reduce((sum, l) => sum + Number(l.amount), 0);
+        .filter((l: LabourCost) => l.workItemId === item.id)
+        .reduce((sum: number, l: LabourCost) => sum + Number(l.amount), 0);
         
       const sellPrice = Number(item.sellingPrice);
       const profit = sellPrice - itemMaterials - itemLabour;
@@ -106,7 +107,7 @@ export async function GET(
       };
     });
 
-    const totalRevenue = project.workItems.reduce((sum, item) => sum + Number(item.sellingPrice), 0);
+    const totalRevenue = project.workItems.reduce((sum: number, item: WorkItem) => sum + Number(item.sellingPrice), 0);
     const profit = totalRevenue - materialCost - labourCost;
     const marginPercentage = totalRevenue > 0 ? (profit / totalRevenue) * 100 : 0;
     const pendingCollection = totalRevenue - receivedAmount;
@@ -122,7 +123,7 @@ export async function GET(
       marginPercentage,
       pendingCollection,
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error fetching project details:', error);
     return NextResponse.json({ error: 'Failed to fetch project details' }, { status: 500 });
   }
