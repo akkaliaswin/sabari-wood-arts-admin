@@ -88,6 +88,7 @@ function PaymentsContent() {
 
   // Search and Filters
   const [search, setSearch] = useState('');
+  const [searchField, setSearchField] = useState('code'); // 'code' or 'ref'
   const [dateRangePreset, setDateRangePreset] = useState('All'); // Today, Week, Month, LastMonth, Custom
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -180,12 +181,14 @@ function PaymentsContent() {
         page: page.toString(),
         limit: limit.toString(),
         search,
+        searchField,
         paymentMode,
         projectStatus,
         clientId: selectedClientId,
         projectId: selectedProjectId,
         startDate: start,
         endDate: end,
+        t: Date.now().toString(),
       });
 
       const res = await fetch(`/api/payments?${params.toString()}`);
@@ -460,15 +463,26 @@ function PaymentsContent() {
       <div className="card" style={{ background: '#faf9f6', padding: '18px', marginBottom: '20px' }}>
         <h3 style={{ marginBottom: '12px', fontSize: '1rem' }}>Filter & Search Collections</h3>
         
-        <div className="form-row">
-          <div className="form-group" style={{ flex: '1 1 250px' }}>
+        <div className="form-row" style={{ alignItems: 'center' }}>
+          <div className="form-group" style={{ width: '160px', marginBottom: '16px' }}>
+            <label className="form-label">Search Field</label>
+            <select
+              className="form-control"
+              value={searchField}
+              onChange={(e) => { setSearchField(e.target.value); setSearch(''); setPage(1); }}
+            >
+              <option value="code">Payment Code</option>
+              <option value="ref">Reference Number</option>
+            </select>
+          </div>
+          <div className="form-group" style={{ flex: '1 1 250px', marginBottom: '16px' }}>
             <label className="form-label">Search</label>
             <div className="search-input-wrapper" style={{ maxWidth: '100%' }}>
               <span className="search-icon">🔍</span>
               <input
                 type="text"
                 className="form-control"
-                placeholder="Search Client Name/Phone, Project Name/Code, Payment/Ref Code..."
+                placeholder={searchField === 'code' ? "Enter payment code..." : "Enter reference number..."}
                 value={search}
                 onChange={(e) => { setSearch(e.target.value); setPage(1); }}
               />
@@ -807,7 +821,9 @@ function PaymentsContent() {
                         </td>
                         <td>{formatCurrency(p.quotedAmount)}</td>
                         <td style={{ color: 'var(--success)' }}>{formatCurrency(p.receivedAmount)}</td>
-                        <td style={{ fontWeight: 'bold', color: 'var(--warning)' }}>{formatCurrency(p.pendingCollection)}</td>
+                        <td style={{ fontWeight: 'bold', color: p.pendingCollection > 0 ? 'var(--warning)' : 'var(--success)' }}>
+                          {p.pendingCollection > 0 ? formatCurrency(p.pendingCollection) : '✅ Paid in Full'}
+                        </td>
                         <td>{p.lastPaymentDate ? new Date(p.lastPaymentDate).toLocaleDateString('en-IN') : 'N/A'}</td>
                         <td>{daysText}</td>
                         <td>
@@ -871,7 +887,9 @@ function PaymentsContent() {
                       </div>
                       <div className="mobile-list-row">
                         <span>Outstanding:</span>
-                        <span style={{ color: 'var(--warning)', fontWeight: 'bold' }}>{formatCurrency(p.pendingCollection)}</span>
+                        <span style={{ color: p.pendingCollection > 0 ? 'var(--warning)' : 'var(--success)', fontWeight: 'bold' }}>
+                          {p.pendingCollection > 0 ? formatCurrency(p.pendingCollection) : 'Paid in Full'}
+                        </span>
                       </div>
                       <div className="mobile-list-row">
                         <span>Aging Status:</span>

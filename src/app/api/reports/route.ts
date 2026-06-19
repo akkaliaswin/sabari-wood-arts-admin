@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { ProjectReportPayload, WorkItem, MaterialPurchase, LabourCost } from '@/types/db';
 
 export interface ReportRow {
   projectId: string;
@@ -8,10 +7,12 @@ export interface ReportRow {
   projectName: string;
   clientName: string;
   clientCode: string;
-  revenue: number;
+  quotedAmount: number;
+  receivedAmount: number;
+  outstandingAmount: number;
   materialCost: number;
   labourCost: number;
-  profit: number;
+  profit: number; // Profit = Quoted - Material - Labour
   marginPercentage: number;
 }
 
@@ -39,8 +40,8 @@ export async function GET(req: NextRequest) {
       projectWhereClause.clientId = clientId;
     }
 
-    // Fetch matching projects with sub-resources
-    const projects: ProjectReportPayload[] = await prisma.project.findMany({
+    // Fetch matching projects with sub-resources including payments
+    const projects = await prisma.project.findMany({
       where: projectWhereClause,
       include: {
         client: {
@@ -55,8 +56,9 @@ export async function GET(req: NextRequest) {
         },
         materialPurchases: true,
         labourCosts: true,
+        payments: true,
       },
-    }) as unknown as ProjectReportPayload[];
+    });
 
     const parsedStart = startDate ? new Date(startDate) : null;
     const parsedEnd = endDate ? new Date(endDate) : null;
@@ -64,18 +66,26 @@ export async function GET(req: NextRequest) {
     if (parsedStart) parsedStart.setHours(0, 0, 0, 0);
     if (parsedEnd) parsedEnd.setHours(23, 59, 59, 999);
 
-    let totalRevenue = 0;
+    let totalQuoted = 0;
+    let totalReceived = 0;
+    let totalOutstanding = 0;
     let totalMaterialCost = 0;
     let totalLabourCost = 0;
 
     const reportRows: ReportRow[] = [];
 
+    // General counts for default view
+    const totalProjects = projects.length;
+    const activeStatuses = ['Lead', 'Measurement Done', 'Quotation Sent', 'Advance Received', 'Production', 'Installation', 'On Hold'];
+    const activeProjects = projects.filter((p) => activeStatuses.includes(p.status)).length;
+    const completedProjects = projects.filter((p) => p.status === 'Completed').length;
+
     // Aggregate report data dynamically
-    projects.forEach((proj: ProjectReportPayload) => {
-      // 1. Filter and sum Work Items (Revenue)
+    projects.forEach((proj: any) => {
+      // 1. Filter and sum Work Items (selling price)
       let projWorkItems = proj.workItems;
       if (parsedStart || parsedEnd) {
-        projWorkItems = projWorkItems.filter((item: WorkItem) => {
+        projWorkItems = projWorkItems.filter((item: any) => {
           const itemDate = new Date(item.createdAt);
           if (parsedStart && itemDate < parsedStart) return false;
           if (parsedEnd && itemDate > parsedEnd) return false;
@@ -83,56 +93,65 @@ export async function GET(req: NextRequest) {
         });
       }
       
-      const projRevenue = projWorkItems.reduce((sum: number, item: WorkItem) => sum + Number(item.sellingPrice), 0);
-      
-      // Get set of matching work item IDs to filter expenses
-      const matchedWorkItemIds = new Set(projWorkItems.map((item: WorkItem) => item.id));
+      const matchedWorkItemIds = new Set(projWorkItems.map((item: any) => item.id));
 
       // 2. Filter and sum Material Purchases
       let projMaterials = proj.materialPurchases;
-      
-      // If workType filter is active, only count materials linked to matched work items
       if (workType) {
-        projMaterials = projMaterials.filter((m: MaterialPurchase) => m.workItemId && matchedWorkItemIds.has(m.workItemId));
+        projMaterials = projMaterials.filter((m: any) => m.workItemId && matchedWorkItemIds.has(m.workItemId));
       }
-      
       if (parsedStart || parsedEnd) {
-        projMaterials = projMaterials.filter((m: MaterialPurchase) => {
+        projMaterials = projMaterials.filter((m: any) => {
           const mDate = new Date(m.purchaseDate);
           if (parsedStart && mDate < parsedStart) return false;
           if (parsedEnd && mDate > parsedEnd) return false;
           return true;
         });
       }
-      
-      const projMaterialCost = projMaterials.reduce((sum: number, m: MaterialPurchase) => sum + Number(m.amount), 0);
+      const projMaterialCost = projMaterials.reduce((sum: number, m: any) => sum + Number(m.amount), 0);
 
       // 3. Filter and sum Labour Costs
       let projLabour = proj.labourCosts;
-      
-      // If workType filter is active, only count labour linked to matched work items
       if (workType) {
-        projLabour = projLabour.filter((l: LabourCost) => l.workItemId && matchedWorkItemIds.has(l.workItemId));
+        projLabour = projLabour.filter((l: any) => l.workItemId && matchedWorkItemIds.has(l.workItemId));
       }
-      
       if (parsedStart || parsedEnd) {
-        projLabour = projLabour.filter((l: LabourCost) => {
+        projLabour = projLabour.filter((l: any) => {
           const lDate = new Date(l.paymentDate);
           if (parsedStart && lDate < parsedStart) return false;
           if (parsedEnd && lDate > parsedEnd) return false;
           return true;
         });
       }
+      const projLabourCost = projLabour.reduce((sum: number, l: any) => sum + Number(l.amount), 0);
+
+      // 4. Filter and sum Payments
+      let projPayments = proj.payments;
+      if (parsedStart || parsedEnd) {
+        projPayments = projPayments.filter((p: any) => {
+          const pDate = new Date(p.paymentDate);
+          if (parsedStart && pDate < parsedStart) return false;
+          if (parsedEnd && pDate > parsedEnd) return false;
+          return true;
+        });
+      }
+      const projReceived = projPayments.reduce((sum: number, p: any) => sum + Number(p.amount), 0);
+
+      // Calculations
+      const projQuoted = Number(proj.quotedAmount);
+      const totalProjReceivedAllTime = proj.payments.reduce((sum: number, p: any) => sum + Number(p.amount), 0);
+      const projOutstanding = proj.status === 'Cancelled' ? 0 : Math.max(0, projQuoted - totalProjReceivedAllTime);
       
-      const projLabourCost = projLabour.reduce((sum: number, l: LabourCost) => sum + Number(l.amount), 0);
+      const profit = projQuoted - projMaterialCost - projLabourCost; // Profit = Quoted - Material - Labour
+      const margin = projQuoted > 0 ? (profit / projQuoted) * 100 : 0;
 
-      // Calculate totals for project row
-      const profit = projRevenue - projMaterialCost - projLabourCost;
-      const margin = projRevenue > 0 ? (profit / projRevenue) * 100 : 0;
-
-      // Only push to report if there is active revenue or costs in this timeframe
-      if (projRevenue > 0 || projMaterialCost > 0 || projLabourCost > 0) {
-        totalRevenue += projRevenue;
+      // Push project row to list if there is active revenue or costs in this timeframe
+      // If no date filters are active, display all non-deleted projects
+      const hasDateFilter = startDate || endDate || workType || projectId || clientId;
+      if (!hasDateFilter || projQuoted > 0 || projReceived > 0 || projMaterialCost > 0 || projLabourCost > 0) {
+        totalQuoted += projQuoted;
+        totalReceived += projReceived;
+        totalOutstanding += projOutstanding;
         totalMaterialCost += projMaterialCost;
         totalLabourCost += projLabourCost;
 
@@ -142,7 +161,9 @@ export async function GET(req: NextRequest) {
           projectName: proj.projectName,
           clientName: proj.client.name,
           clientCode: proj.client.clientCode,
-          revenue: projRevenue,
+          quotedAmount: projQuoted,
+          receivedAmount: projReceived,
+          outstandingAmount: projOutstanding,
           materialCost: projMaterialCost,
           labourCost: projLabourCost,
           profit,
@@ -151,18 +172,27 @@ export async function GET(req: NextRequest) {
       }
     });
 
-    const totalProfit = totalRevenue - totalMaterialCost - totalLabourCost;
-    const totalMarginPercentage = totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0;
+    const totalProfit = totalQuoted - totalMaterialCost - totalLabourCost; // Profit = Quoted - Material - Labour
+    const totalMarginPercentage = totalQuoted > 0 ? (totalProfit / totalQuoted) * 100 : 0;
 
     return NextResponse.json({
       summary: {
-        totalRevenue,
+        totalProjects,
+        activeProjects,
+        completedProjects,
+        totalRevenue: totalQuoted, // Total revenue is total Quoted Amount
+        totalPaymentsReceived: totalReceived,
+        totalOutstandingCollection: totalOutstanding,
         totalMaterialCost,
         totalLabourCost,
         totalProfit,
         totalMarginPercentage,
       },
       rows: reportRows,
+    }, {
+      headers: {
+        'Cache-Control': 'no-store, max-age=0',
+      },
     });
   } catch (error) {
     console.error('Error generating reports:', error);

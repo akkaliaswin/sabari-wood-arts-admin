@@ -26,6 +26,16 @@ export async function GET(
                 paymentDate: true,
               },
             },
+            materialPurchases: {
+              select: {
+                amount: true,
+              },
+            },
+            labourCosts: {
+              select: {
+                amount: true,
+              },
+            },
           },
           orderBy: {
             createdAt: 'desc',
@@ -47,7 +57,20 @@ export async function GET(
       (sum: number, p: any) => sum + p.payments.reduce((s: number, pay: any) => s + Number(pay.amount), 0),
       0
     );
-    const outstandingAmount = totalBusinessValue - totalAmountReceived;
+    const outstandingAmount = projectsWithPayments.reduce((sum: number, p: any) => {
+      if (p.status === 'Cancelled') return sum;
+      const pReceived = p.payments.reduce((s: number, pay: any) => s + Number(pay.amount), 0);
+      return sum + Math.max(0, Number(p.quotedAmount) - pReceived);
+    }, 0);
+    const totalMaterialCost = projectsWithPayments.reduce(
+      (sum: number, p: any) => sum + p.materialPurchases.reduce((s: number, mat: any) => s + Number(mat.amount), 0),
+      0
+    );
+    const totalLabourCost = projectsWithPayments.reduce(
+      (sum: number, p: any) => sum + p.labourCosts.reduce((s: number, lab: any) => s + Number(lab.amount), 0),
+      0
+    );
+    const profit = totalBusinessValue - totalMaterialCost - totalLabourCost; // Profit = Quoted - Material - Labour
     const numberOfProjects = projectsWithPayments.length;
 
     let lastPaymentDate: Date | null = null;
@@ -67,8 +90,15 @@ export async function GET(
         totalProjectValue: totalBusinessValue,
         totalAmountReceived,
         outstandingAmount,
+        totalMaterialCost,
+        totalLabourCost,
+        profit,
         numberOfProjects,
         lastPaymentDate: lastPaymentDate ? lastPaymentDate.toISOString() : null,
+      },
+    }, {
+      headers: {
+        'Cache-Control': 'no-store, max-age=0',
       },
     });
   } catch (error) {
@@ -90,16 +120,25 @@ export async function PUT(
       return NextResponse.json({ error: 'Name and Phone are required' }, { status: 400 });
     }
 
+    // Phone validations: Exactly 10 digits, only digits allowed.
+    const phoneRegex = /^\d{10}$/;
+    if (!phoneRegex.test(phone.trim())) {
+      return NextResponse.json({ error: 'Please enter a valid 10-digit mobile number.' }, { status: 400 });
+    }
+    if (alternatePhone && alternatePhone.trim() && !phoneRegex.test(alternatePhone.trim())) {
+      return NextResponse.json({ error: 'Please enter a valid 10-digit mobile number.' }, { status: 400 });
+    }
+
     const updatedClient = await prisma.client.update({
       where: { id },
       data: {
-        name,
-        phone,
-        alternatePhone: alternatePhone || null,
-        location: location || null,
-        address: address || null,
-        referredBy: referredBy || null,
-        remarks: remarks || null,
+        name: name.trim(),
+        phone: phone.trim(),
+        alternatePhone: alternatePhone ? alternatePhone.trim() : null,
+        location: location ? location.trim() : null,
+        address: address ? address.trim() : null,
+        referredBy: referredBy ? referredBy.trim() : null,
+        remarks: remarks ? remarks.trim() : null,
       },
     });
 

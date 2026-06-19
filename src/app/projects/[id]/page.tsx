@@ -20,6 +20,7 @@ interface WorkItem {
   unitPrice: number;
   totalPrice: number;
   sellingPrice: number;
+  actualCost: number;
   status: string;
   remarks: string | null;
   materialCost: number;
@@ -140,8 +141,8 @@ export default function ProjectDetailPage({
   const [wiType, setWiType] = useState('');
   const [wiDesc, setWiDesc] = useState('');
   const [wiQty, setWiQty] = useState('1');
-  const [wiPrice, setWiPrice] = useState('');
   const [wiSellingPrice, setWiSellingPrice] = useState('');
+  const [wiActualCost, setWiActualCost] = useState('');
   const [wiStatus, setWiStatus] = useState('Pending');
   const [wiRemarks, setWiRemarks] = useState('');
   const [wiSubmitting, setWiSubmitting] = useState(false);
@@ -231,7 +232,7 @@ export default function ProjectDetailPage({
   const fetchProjectDetails = async () => {
     try {
       setLoading(true);
-      const res = await fetch(`/api/projects/${id}`);
+      const res = await fetch(`/api/projects/${id}?t=${Date.now()}`);
       if (!res.ok) {
         if (res.status === 404) throw new Error('Project profile not found');
         throw new Error('Failed to load project details');
@@ -324,16 +325,25 @@ export default function ProjectDetailPage({
     }
   };
 
-  // Add Work Item
+  // Add Work Item (furniture piece, interior work)
   const handleAddWorkItem = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!wiType) return;
+    if (!wiType || !wiSellingPrice || !wiActualCost) return;
 
     try {
       setWiSubmitting(true);
       const qty = Number(wiQty);
-      const price = Number(wiPrice);
-      const sellPrice = wiSellingPrice ? Number(wiSellingPrice) : qty * price;
+      const sellPrice = Number(wiSellingPrice);
+      const actualCost = Number(wiActualCost);
+
+      const totalAfterNewItem = sellPrice + (project?.totalRevenue || 0);
+      if (totalAfterNewItem > (project?.quotedAmount || 0)) {
+        const proceed = confirm(`Adding this item will make the total selling price of work items (${formatCurrency(totalAfterNewItem)}) exceed the project's quoted amount (${formatCurrency(project?.quotedAmount || 0)}).\n\nDo you want to proceed?`);
+        if (!proceed) {
+          setWiSubmitting(false);
+          return;
+        }
+      }
 
       const res = await fetch(`/api/projects/${id}/work-items`, {
         method: 'POST',
@@ -342,8 +352,8 @@ export default function ProjectDetailPage({
           workType: wiType,
           description: wiDesc || null,
           quantity: qty,
-          unitPrice: price,
           sellingPrice: sellPrice,
+          actualCost: actualCost,
           status: wiStatus,
           remarks: wiRemarks || null,
         }),
@@ -353,8 +363,8 @@ export default function ProjectDetailPage({
       setWiType('');
       setWiDesc('');
       setWiQty('1');
-      setWiPrice('');
       setWiSellingPrice('');
+      setWiActualCost('');
       setWiStatus('Pending');
       setWiRemarks('');
       fetchProjectDetails();
@@ -703,55 +713,85 @@ export default function ProjectDetailPage({
       {/* Project Financial Summary Section */}
       <div className="card" style={{ borderLeft: '4px solid var(--primary)', marginBottom: '24px' }}>
         <h3 style={{ marginBottom: '14px', fontSize: '1.05rem' }}>Financial Summary</h3>
-        <div className="stat-grid" style={{ border: 'none', padding: 0, boxShadow: 'none', margin: 0, gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))' }}>
+        <div className="stat-grid" style={{ border: 'none', padding: 0, boxShadow: 'none', margin: 0, gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))' }}>
           <div className="stat-card" style={{ padding: '12px' }}>
             <div className="stat-label">Quoted Amount</div>
-            <div className="stat-value">{formatCurrency(project.quotedAmount)}</div>
+            <div className="stat-value">{formatCurrency(project.quotedAmount ?? 0)}</div>
+          </div>
+          <div className="stat-card" style={{ padding: '12px', borderLeft: (project.totalRevenue ?? 0) > (project.quotedAmount ?? 0) ? '3px solid var(--danger)' : '3px solid var(--primary)' }}>
+            <div className="stat-label">Work Selling Price</div>
+            <div className="stat-value" style={{ color: (project.totalRevenue ?? 0) > (project.quotedAmount ?? 0) ? 'var(--danger)' : 'inherit' }}>
+              {formatCurrency(project.totalRevenue ?? 0)}
+            </div>
+            {(project.totalRevenue ?? 0) > (project.quotedAmount ?? 0) && (
+              <div style={{ fontSize: '0.7rem', color: 'var(--danger)', fontWeight: 'bold', marginTop: '2px' }}>
+                ⚠️ Over Quote by {formatCurrency((project.totalRevenue ?? 0) - (project.quotedAmount ?? 0))}
+              </div>
+            )}
+          </div>
+          <div className="stat-card" style={{ padding: '12px', borderLeft: '3px solid var(--success)' }}>
+            <div className="stat-label">Total Payments Received</div>
+            <div className="stat-value" style={{ color: 'var(--success)' }}>
+              {formatCurrency(project.receivedAmount ?? 0)}
+            </div>
+          </div>
+          <div className="stat-card" style={{ padding: '12px', borderLeft: (project.pendingCollection ?? 0) > 0 ? '3px solid var(--warning)' : '3px solid var(--success)' }}>
+            <div className="stat-label">Outstanding Amount</div>
+            {(project.pendingCollection ?? 0) > 0 ? (
+              <div className="stat-value" style={{ color: 'var(--warning)' }}>
+                {formatCurrency(project.pendingCollection ?? 0)}
+              </div>
+            ) : (
+              <div className="stat-value" style={{ color: 'var(--success)', fontSize: '1.1rem', fontWeight: 'bold', paddingTop: '4px' }}>
+                ✅ Paid in Full
+              </div>
+            )}
           </div>
           <div className="stat-card" style={{ padding: '12px', borderLeft: '3px solid var(--danger)' }}>
             <div className="stat-label">Material Cost</div>
             <div className="stat-value" style={{ color: 'var(--danger)' }}>
-              {formatCurrency(project.materialCost)}
+              {formatCurrency(project.materialCost ?? 0)}
             </div>
           </div>
           <div className="stat-card" style={{ padding: '12px', borderLeft: '3px solid var(--danger)' }}>
             <div className="stat-label">Labour Cost</div>
             <div className="stat-value" style={{ color: 'var(--danger)' }}>
-              {formatCurrency(project.labourCost)}
+              {formatCurrency(project.labourCost ?? 0)}
             </div>
           </div>
-          <div className="stat-card" style={{ padding: '12px', borderLeft: '3px solid var(--success)' }}>
-            <div className="stat-label">Total Payments Received</div>
-            <div className="stat-value" style={{ color: 'var(--success)' }}>
-              {formatCurrency(project.receivedAmount)}
+          {/* Profit = Quoted Amount - Material Cost - Labour Cost */}
+          <div className="stat-card" style={{ padding: '12px', borderLeft: '3px solid var(--success)', background: 'var(--primary-light)' }}>
+            <div className="stat-label" style={{ color: 'var(--primary)', fontWeight: 'bold' }}>Profit</div>
+            <div className="stat-value" style={{ color: (project.profit ?? 0) >= 0 ? 'var(--success)' : 'var(--danger)' }}>
+              {formatCurrency(project.profit ?? 0)}
             </div>
-          </div>
-          <div className="stat-card" style={{ padding: '12px', borderLeft: '3px solid var(--warning)' }}>
-            <div className="stat-label">Outstanding Amount</div>
-            <div className="stat-value" style={{ color: (Number(project.quotedAmount) - project.receivedAmount) > 0 ? 'var(--warning)' : 'var(--success)' }}>
-              {formatCurrency(Number(project.quotedAmount) - project.receivedAmount)}
+            <div style={{ fontSize: '0.75rem', fontWeight: 'bold', color: (project.profit ?? 0) >= 0 ? 'var(--success)' : 'var(--danger)', marginTop: '2px' }}>
+              Margin: {(project.marginPercentage ?? 0).toFixed(1)}%
             </div>
-          </div>
-          {/* Estimated Profit = Quoted Amount - Material Cost - Labour Cost */}
-          <div className="stat-card" style={{ padding: '12px', borderLeft: '3px solid var(--info)', background: 'var(--primary-light)' }}>
-            <div className="stat-label" style={{ color: 'var(--primary)', fontWeight: 'bold' }}>Estimated Profit</div>
-            {(() => {
-              const estimatedProfit = Number(project.quotedAmount) - project.materialCost - project.labourCost;
-              const margin = Number(project.quotedAmount) > 0 ? (estimatedProfit / Number(project.quotedAmount)) * 100 : 0;
-              return (
-                <>
-                  <div className="stat-value" style={{ color: estimatedProfit >= 0 ? 'var(--success)' : 'var(--danger)' }}>
-                    {formatCurrency(estimatedProfit)}
-                  </div>
-                  <div style={{ fontSize: '0.75rem', fontWeight: 'bold', color: estimatedProfit >= 0 ? 'var(--success)' : 'var(--danger)', marginTop: '2px' }}>
-                    Margin: {margin.toFixed(1)}%
-                  </div>
-                </>
-              );
-            })()}
           </div>
         </div>
       </div>
+
+      {project.totalRevenue > project.quotedAmount && (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px',
+          background: '#fff9db',
+          border: '1px solid #ffe066',
+          color: '#856404',
+          padding: '12px 16px',
+          borderRadius: 'var(--radius)',
+          marginBottom: '20px',
+          fontSize: '0.9rem',
+          lineHeight: '1.4'
+        }}>
+          <span style={{ fontSize: '1.2rem' }}>⚠️</span>
+          <div>
+            <strong>Budget Warning:</strong> The total selling price of scope work items (<strong>{formatCurrency(project.totalRevenue)}</strong>) exceeds the project's Quoted Amount (<strong>{formatCurrency(project.quotedAmount)}</strong>) by <strong>{formatCurrency(project.totalRevenue - project.quotedAmount)}</strong>.
+          </div>
+        </div>
+      )}
 
       {/* Tabs navigation */}
       <div className="tabs-container">
@@ -1023,24 +1063,30 @@ export default function ProjectDetailPage({
                   />
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Unit Price (INR) *</label>
-                  <input
-                    type="number"
-                    className="form-control"
-                    value={wiPrice}
-                    onChange={(e) => setWiPrice(e.target.value)}
-                    placeholder="e.g. 12000"
-                    required
-                  />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Selling Price (INR)</label>
+                  <label className="form-label">Selling Price (INR) *</label>
                   <input
                     type="number"
                     className="form-control"
                     value={wiSellingPrice}
                     onChange={(e) => setWiSellingPrice(e.target.value)}
-                    placeholder="Default: Qty * Price"
+                    placeholder="e.g. 12000"
+                    required
+                  />
+                  {wiSellingPrice && (Number(wiSellingPrice) + (project?.totalRevenue || 0)) > (project?.quotedAmount || 0) && (
+                    <span style={{ color: 'var(--danger)', fontSize: '0.78rem', marginTop: '6px', display: 'block', fontWeight: '500' }}>
+                      ⚠️ Exceeds quote limit by {formatCurrency(Number(wiSellingPrice) + (project?.totalRevenue || 0) - (project?.quotedAmount || 0))}
+                    </span>
+                  )}
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Actual Cost (INR) *</label>
+                  <input
+                    type="number"
+                    className="form-control"
+                    value={wiActualCost}
+                    onChange={(e) => setWiActualCost(e.target.value)}
+                    placeholder="e.g. 8000"
+                    required
                   />
                 </div>
               </div>
@@ -1084,8 +1130,7 @@ export default function ProjectDetailPage({
                       <th>Description</th>
                       <th>Qty</th>
                       <th>Selling Price</th>
-                      <th>Material Cost</th>
-                      <th>Labour Cost</th>
+                      <th>Actual Cost</th>
                       <th>Profit</th>
                       <th>Margin %</th>
                       <th>Status</th>
@@ -1100,8 +1145,7 @@ export default function ProjectDetailPage({
                         <td>{item.description || '—'}</td>
                         <td>{Number(item.quantity)}</td>
                         <td style={{ fontWeight: '600' }}>{formatCurrency(Number(item.sellingPrice))}</td>
-                        <td style={{ color: 'var(--danger)' }}>{formatCurrency(Number(item.materialCost))}</td>
-                        <td style={{ color: 'var(--danger)' }}>{formatCurrency(Number(item.labourCost))}</td>
+                        <td style={{ color: 'var(--danger)' }}>{formatCurrency(Number(item.actualCost))}</td>
                         <td style={{ color: item.profit >= 0 ? 'var(--success)' : 'var(--danger)', fontWeight: '600' }}>
                           {formatCurrency(Number(item.profit))}
                         </td>

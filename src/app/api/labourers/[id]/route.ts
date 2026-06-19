@@ -69,11 +69,17 @@ export async function PUT(
       return NextResponse.json({ error: 'Name, Phone, and Skill Type are required' }, { status: 400 });
     }
 
+    // Phone validations: Exactly 10 digits, only digits allowed.
+    const phoneRegex = /^\d{10}$/;
+    if (!phoneRegex.test(phone.trim())) {
+      return NextResponse.json({ error: 'Please enter a valid 10-digit mobile number.' }, { status: 400 });
+    }
+
     const updatedLabourer = await prisma.labourer.update({
       where: { id },
       data: {
-        name,
-        phone,
+        name: name.trim(),
+        phone: phone.trim(),
         address,
         skillType,
         joiningDate: joiningDate ? new Date(joiningDate) : undefined,

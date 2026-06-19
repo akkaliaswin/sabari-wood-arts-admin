@@ -14,6 +14,7 @@ interface DashboardStats {
   totalRevenue: number;
   grossProfit: number;
   averageMargin: number;
+  netCashPosition: number;
   mostProfitableWorkType: string;
   mostProfitableProject: string;
   pipelineCounts: {
@@ -48,7 +49,7 @@ export default function Dashboard() {
   const fetchDashboardStats = async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/dashboard');
+      const res = await fetch(`/api/dashboard?t=${Date.now()}`);
       if (!res.ok) throw new Error('Failed to load dashboard metrics');
       const data = await res.json();
       setStats(data);
@@ -148,10 +149,10 @@ export default function Dashboard() {
         })}
       </div>
 
-      <h3 style={{ margin: '16px 0 12px 0', fontSize: '1.1rem', color: 'var(--text-muted)' }}>All-Time Profitability & Costs</h3>
+      <h3 style={{ margin: '16px 0 12px 0', fontSize: '1.1rem', color: 'var(--text-muted)' }}>Financial Overview</h3>
       <div className="stat-grid" style={{ marginBottom: '24px' }}>
-        <div className="stat-card">
-          <div className="stat-label">Total Revenue</div>
+        <div className="stat-card" style={{ borderLeft: '4px solid var(--primary)' }}>
+          <div className="stat-label">Total Revenue (Quoted)</div>
           <div className="stat-value">{formatCurrency(stats.totalRevenue)}</div>
         </div>
 
@@ -169,13 +170,29 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className="stat-card" style={{ background: 'var(--primary-light)', borderLeft: '4px solid var(--success)' }}>
-          <div className="stat-label" style={{ color: 'var(--primary)', fontWeight: 'bold' }}>Estimated Gross Profit</div>
+        <div className="stat-card" style={{ background: 'var(--primary-light)', borderLeft: '4px solid var(--primary)', gridColumn: 'span 2' }}>
+          <div className="stat-label" style={{ color: 'var(--primary)', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px' }}>
+            Estimated Profit
+            <span title="Estimated Profit = projected profit based on quotation and current expenses." style={{ cursor: 'help', fontSize: '0.85rem' }}>ℹ️</span>
+          </div>
           <div className="stat-value" style={{ color: stats.grossProfit >= 0 ? 'var(--success)' : 'var(--danger)' }}>
             {formatCurrency(stats.grossProfit)}
           </div>
-          <div style={{ fontSize: '0.75rem', fontWeight: 'bold', color: stats.grossProfit >= 0 ? 'var(--success)' : 'var(--danger)', marginTop: '2px' }}>
+          <div style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-muted)', marginTop: '2px' }}>
             Avg Margin: {stats.averageMargin.toFixed(1)}%
+          </div>
+        </div>
+
+        <div className="stat-card" style={{ background: 'var(--success-light)', borderLeft: '4px solid var(--success)', gridColumn: 'span 2' }}>
+          <div className="stat-label" style={{ color: 'var(--success)', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px' }}>
+            Net Cash Position
+            <span title="Net Cash Position = actual cash collected minus current expenses." style={{ cursor: 'help', fontSize: '0.85rem' }}>ℹ️</span>
+          </div>
+          <div className="stat-value" style={{ color: stats.netCashPosition >= 0 ? 'var(--success)' : 'var(--danger)' }}>
+            {formatCurrency(stats.netCashPosition)}
+          </div>
+          <div style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-muted)', marginTop: '2px' }}>
+            Actual Cash vs Expenses
           </div>
         </div>
       </div>

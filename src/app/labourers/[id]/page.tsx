@@ -98,6 +98,14 @@ export default function LabourerDetailPage({
 
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Phone validation: Exactly 10 digits, only digits allowed.
+    const phoneRegex = /^\d{10}$/;
+    if (!phoneRegex.test(phone.trim())) {
+      alert('Please enter a valid 10-digit mobile number.');
+      return;
+    }
+
     try {
       setSaving(true);
       const res = await fetch(`/api/labourers/${id}`, {

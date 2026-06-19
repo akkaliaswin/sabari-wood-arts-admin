@@ -63,6 +63,7 @@ model WorkItem {
   unitPrice     Decimal  @default(0.00) @db.Decimal(12, 2) @map("unit_price")
   totalPrice    Decimal  @default(0.00) @db.Decimal(12, 2) @map("total_price")
   sellingPrice  Decimal  @default(0.00) @db.Decimal(12, 2) @map("selling_price")
+  actualCost    Decimal  @default(0.00) @db.Decimal(12, 2) @map("actual_cost")
   status        String   @default("Pending")
   remarks       String?
   createdAt     DateTime @default(now()) @map("created_at")

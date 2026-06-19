@@ -131,48 +131,99 @@ export async function GET(req: NextRequest) {
       prisma.payment.count({ where: whereClause }),
     ]);
 
-    // Calculate global KPIs (Dashboard Cards)
-    const now = new Date();
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    // Calculate KPIs dynamically based on filters in IST timezone (Asia/Kolkata)
+    const nowIST = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+    const todayISTString = nowIST.getFullYear() + '-' + String(nowIST.getMonth() + 1).padStart(2, '0') + '-' + String(nowIST.getDate()).padStart(2, '0');
+    const currentMonthIST = nowIST.getMonth();
+    const currentYearIST = nowIST.getFullYear();
 
-    // Fetch all non-deleted projects with their payments
-    const allProjects = await prisma.project.findMany({
-      where: {
-        deletedAt: null,
-        client: { deletedAt: null },
-      },
-      include: {
-        payments: true,
+    // Fetch all filtered payments for payment metrics
+    const allFilteredPayments = await prisma.payment.findMany({
+      where: whereClause,
+      select: {
+        amount: true,
+        paymentDate: true,
       },
     });
 
     let totalCollection = 0;
     let todayCollection = 0;
     let monthCollection = 0;
-    let totalTransactions = 0;
+    const totalTransactions = allFilteredPayments.length;
+
+    allFilteredPayments.forEach((pay: any) => {
+      const amt = Number(pay.amount);
+      const payDate = new Date(pay.paymentDate);
+
+      // prisma Date-only maps to midnight UTC, getUTC* extracts the correct input day/month/year
+      const payYear = payDate.getUTCFullYear();
+      const payMonth = payDate.getUTCMonth();
+      const payDay = payDate.getUTCDate();
+      const payDateString = payYear + '-' + String(payMonth + 1).padStart(2, '0') + '-' + String(payDay).padStart(2, '0');
+
+      totalCollection += amt;
+
+      if (payDateString === todayISTString) {
+        todayCollection += amt;
+      }
+      if (payYear === currentYearIST && payMonth === currentMonthIST) {
+        monthCollection += amt;
+      }
+    });
+
+    // Construct project filter for outstanding pending calculation
+    const projectWhere: any = {
+      deletedAt: null,
+      client: {
+        deletedAt: null,
+      },
+    };
+
+    if (clientId) {
+      projectWhere.clientId = clientId;
+    }
+    if (projectId) {
+      projectWhere.id = projectId;
+    }
+    if (projectStatus) {
+      let statusQuery: any = projectStatus;
+      if (projectStatus === 'In Progress') {
+        statusQuery = { in: ['Advance Received', 'Production', 'Installation', 'Measurement Done'] };
+      } else if (projectStatus === 'Quoted') {
+        statusQuery = 'Quotation Sent';
+      }
+      projectWhere.status = statusQuery;
+    }
+    if (search) {
+      projectWhere.OR = [
+        { projectName: { contains: search, mode: 'insensitive' } },
+        { projectCode: { contains: search, mode: 'insensitive' } },
+        {
+          client: {
+            OR: [
+              { name: { contains: search, mode: 'insensitive' } },
+              { phone: { contains: search, mode: 'insensitive' } },
+            ],
+          },
+        },
+      ];
+    }
+
+    const allFilteredProjects = await prisma.project.findMany({
+      where: projectWhere,
+      include: {
+        payments: {
+          select: {
+            amount: true,
+          },
+        },
+      },
+    });
+
     let pendingCollection = 0;
-
-    allProjects.forEach((p) => {
-      const projectPaymentsSum = p.payments.reduce((sum, pay) => {
-        const amt = Number(pay.amount);
-        const payDate = new Date(pay.paymentDate);
-
-        totalCollection += amt;
-        totalTransactions++;
-
-        if (payDate >= todayStart) {
-          todayCollection += amt;
-        }
-        if (payDate >= monthStart) {
-          monthCollection += amt;
-        }
-
-        return sum + amt;
-      }, 0);
-
-      // Only count outstanding for non-cancelled projects
+    allFilteredProjects.forEach((p: any) => {
       if (p.status !== 'Cancelled') {
+        const projectPaymentsSum = p.payments.reduce((sum: number, pay: any) => sum + Number(pay.amount), 0);
         const balance = Number(p.quotedAmount) - projectPaymentsSum;
         if (balance > 0) {
           pendingCollection += balance;
@@ -191,6 +242,10 @@ export async function GET(req: NextRequest) {
         monthCollection,
         pendingCollection,
         totalTransactions,
+      },
+    }, {
+      headers: {
+        'Cache-Control': 'no-store, max-age=0',
       },
     });
   } catch (error) {

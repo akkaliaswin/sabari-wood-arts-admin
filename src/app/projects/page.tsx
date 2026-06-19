@@ -37,6 +37,7 @@ function ProjectsContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
+  const [searchField, setSearchField] = useState('name'); // 'name' or 'code'
   const [selectedStatus, setSelectedStatus] = useState('');
   const [showAddForm, setShowAddForm] = useState(prefillOpen);
 
@@ -80,7 +81,7 @@ function ProjectsContent() {
 
   useEffect(() => {
     fetchProjects();
-  }, [search, selectedStatus]);
+  }, [search, selectedStatus, searchField]);
 
   useEffect(() => {
     fetchClientsShort();
@@ -98,7 +99,7 @@ function ProjectsContent() {
   const fetchProjects = async () => {
     try {
       setLoading(true);
-      const url = `/api/projects?search=${encodeURIComponent(search)}&status=${encodeURIComponent(selectedStatus)}`;
+      const url = `/api/projects?search=${encodeURIComponent(search)}&status=${encodeURIComponent(selectedStatus)}&searchField=${searchField}&t=${Date.now()}`;
       const res = await fetch(url);
       if (!res.ok) throw new Error('Failed to fetch projects');
       const data = await res.json();
@@ -112,7 +113,7 @@ function ProjectsContent() {
 
   const fetchClientsShort = async () => {
     try {
-      const res = await fetch('/api/clients');
+      const res = await fetch(`/api/clients?t=${Date.now()}`);
       if (res.ok) {
         const data = await res.json();
         setClients(data);
@@ -345,13 +346,22 @@ function ProjectsContent() {
       )}
 
       {/* Search and Filters */}
-      <div className="filter-bar">
-        <div className="search-input-wrapper">
+      <div className="filter-bar" style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+        <select
+          className="form-control"
+          value={searchField}
+          onChange={(e) => { setSearchField(e.target.value); setSearch(''); }}
+          style={{ width: '160px', minHeight: '44px' }}
+        >
+          <option value="name">Project Name</option>
+          <option value="code">Project Code</option>
+        </select>
+        <div className="search-input-wrapper" style={{ flex: 1 }}>
           <span className="search-icon">🔍</span>
           <input
             type="text"
             className="form-control"
-            placeholder="Search by code, project, location, or client..."
+            placeholder={searchField === 'name' ? "Enter project name..." : "Enter project code (e.g. P0001)..."}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
@@ -455,7 +465,7 @@ function ProjectsContent() {
                       {formatCurrency(project.receivedAmount)}
                     </td>
                     <td style={{ color: project.pendingCollection > 0 ? 'var(--warning)' : 'var(--success)', fontWeight: '500' }}>
-                      {formatCurrency(project.pendingCollection)}
+                      {project.pendingCollection > 0 ? formatCurrency(project.pendingCollection) : '✅ Paid in Full'}
                     </td>
                     <td style={{ textAlign: 'right' }}>
                       <Link href={`/projects/${project.id}`} className="btn btn-secondary btn-sm">
@@ -502,7 +512,7 @@ function ProjectsContent() {
                   <div className="mobile-list-row">
                     <span>Balance Due:</span>
                     <span style={{ color: project.pendingCollection > 0 ? 'var(--warning)' : 'var(--success)' }}>
-                      {formatCurrency(project.pendingCollection)}
+                      {project.pendingCollection > 0 ? formatCurrency(project.pendingCollection) : 'Paid in Full'}
                     </span>
                   </div>
                 </div>

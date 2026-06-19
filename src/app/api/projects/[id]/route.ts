@@ -95,7 +95,8 @@ export async function GET(
         .reduce((sum: number, l: LabourCost) => sum + Number(l.amount), 0);
         
       const sellPrice = Number(item.sellingPrice);
-      const profit = sellPrice - itemMaterials - itemLabour;
+      const actualCost = Number((item as any).actualCost || 0);
+      const profit = sellPrice - actualCost;
       const marginPercentage = sellPrice > 0 ? (profit / sellPrice) * 100 : 0;
       
       return {
@@ -108,9 +109,9 @@ export async function GET(
     });
 
     const totalRevenue = project.workItems.reduce((sum: number, item: WorkItem) => sum + Number(item.sellingPrice), 0);
-    const profit = totalRevenue - materialCost - labourCost;
-    const marginPercentage = totalRevenue > 0 ? (profit / totalRevenue) * 100 : 0;
-    const pendingCollection = totalRevenue - receivedAmount;
+    const profit = Number(project.quotedAmount) - materialCost - labourCost; // Profit = Quoted Amount - Material - Labour
+    const marginPercentage = Number(project.quotedAmount) > 0 ? (profit / Number(project.quotedAmount)) * 100 : 0;
+    const pendingCollection = project.status === 'Cancelled' ? 0 : Math.max(0, Number(project.quotedAmount) - receivedAmount);
 
     return NextResponse.json({
       ...project,
@@ -122,6 +123,10 @@ export async function GET(
       profit,
       marginPercentage,
       pendingCollection,
+    }, {
+      headers: {
+        'Cache-Control': 'no-store, max-age=0',
+      },
     });
   } catch (error) {
     console.error('Error fetching project details:', error);

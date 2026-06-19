@@ -21,6 +21,7 @@ export default function ClientsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
+  const [searchField, setSearchField] = useState('name'); // 'name' or 'phone'
   const [showAddForm, setShowAddForm] = useState(false);
 
   // Form states
@@ -36,11 +37,11 @@ export default function ClientsPage() {
 
   useEffect(() => {
     fetchClients();
-  }, [search]);
+  }, [search, searchField]);
 
   const fetchClients = async () => {
     try {
-      const res = await fetch(`/api/clients?search=${encodeURIComponent(search)}`);
+      const res = await fetch(`/api/clients?search=${encodeURIComponent(search)}&searchField=${searchField}&t=${Date.now()}`);
       if (!res.ok) throw new Error('Failed to fetch clients');
       const data = await res.json();
       setClients(data);
@@ -55,6 +56,17 @@ export default function ClientsPage() {
     e.preventDefault();
     if (!name.trim() || !phone.trim()) {
       setFormError('Name and Phone number are required.');
+      return;
+    }
+
+    // Phone validations: Exactly 10 digits, only digits allowed.
+    const phoneRegex = /^\d{10}$/;
+    if (!phoneRegex.test(phone.trim())) {
+      setFormError('Please enter a valid 10-digit mobile number.');
+      return;
+    }
+    if (alternatePhone.trim() && !phoneRegex.test(alternatePhone.trim())) {
+      setFormError('Please enter a valid 10-digit mobile number.');
       return;
     }
 
@@ -221,13 +233,22 @@ export default function ClientsPage() {
       )}
 
       {/* Search & Filter Header */}
-      <div className="filter-bar">
-        <div className="search-input-wrapper">
+      <div className="filter-bar" style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+        <select
+          className="form-control"
+          value={searchField}
+          onChange={(e) => { setSearchField(e.target.value); setSearch(''); }}
+          style={{ width: '160px', minHeight: '44px' }}
+        >
+          <option value="name">Client Name</option>
+          <option value="phone">Phone Number</option>
+        </select>
+        <div className="search-input-wrapper" style={{ flex: 1 }}>
           <span className="search-icon">🔍</span>
           <input
             type="text"
             className="form-control"
-            placeholder="Search by code, name, phone, or location..."
+            placeholder={searchField === 'name' ? "Enter client name..." : "Enter 10-digit phone number..."}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />

@@ -41,6 +41,7 @@ export interface WorkItem {
   unitPrice: any;
   totalPrice: any;
   sellingPrice: any;
+  actualCost: any;
   status: string;
   remarks: string | null;
   createdAt: Date;

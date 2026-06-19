@@ -29,6 +29,7 @@ interface ClientDetail {
     totalProjectValue: number;
     totalAmountReceived: number;
     outstandingAmount: number;
+    profit: number;
     numberOfProjects: number;
     lastPaymentDate: string | null;
   };
@@ -65,7 +66,7 @@ export default function ClientDetailPage({
   const fetchClientDetails = async () => {
     try {
       setLoading(true);
-      const res = await fetch(`/api/clients/${id}`);
+      const res = await fetch(`/api/clients/${id}?t=${Date.now()}`);
       if (!res.ok) {
         if (res.status === 404) throw new Error('Client not found');
         throw new Error('Failed to fetch client details');
@@ -92,6 +93,17 @@ export default function ClientDetailPage({
     e.preventDefault();
     if (!name.trim() || !phone.trim()) {
       setEditError('Name and Phone number are required.');
+      return;
+    }
+
+    // Phone validations: Exactly 10 digits, only digits allowed.
+    const phoneRegex = /^\d{10}$/;
+    if (!phoneRegex.test(phone.trim())) {
+      setEditError('Please enter a valid 10-digit mobile number.');
+      return;
+    }
+    if (alternatePhone.trim() && !phoneRegex.test(alternatePhone.trim())) {
+      setEditError('Please enter a valid 10-digit mobile number.');
       return;
     }
 
@@ -354,10 +366,22 @@ export default function ClientDetailPage({
                   {formatCurrency(client.financialSummary?.totalAmountReceived ?? 0)}
                 </div>
               </div>
-              <div className="stat-card" style={{ padding: '12px', borderLeft: '3px solid var(--warning)' }}>
+              <div className="stat-card" style={{ padding: '12px', borderLeft: (client.financialSummary?.outstandingAmount ?? 0) > 0 ? '3px solid var(--warning)' : '3px solid var(--success)' }}>
                 <div className="stat-label">Outstanding Amount</div>
-                <div className="stat-value" style={{ color: 'var(--warning)' }}>
-                  {formatCurrency(client.financialSummary?.outstandingAmount ?? 0)}
+                {(client.financialSummary?.outstandingAmount ?? 0) > 0 ? (
+                  <div className="stat-value" style={{ color: 'var(--warning)' }}>
+                    {formatCurrency(client.financialSummary?.outstandingAmount ?? 0)}
+                  </div>
+                ) : (
+                  <div className="stat-value" style={{ color: 'var(--success)', fontSize: '1.1rem', fontWeight: 'bold', paddingTop: '4px' }}>
+                    ✅ Paid in Full
+                  </div>
+                )}
+              </div>
+              <div className="stat-card" style={{ padding: '12px', borderLeft: '3px solid var(--success)', background: 'var(--primary-light)' }}>
+                <div className="stat-label" style={{ color: 'var(--primary)', fontWeight: 'bold' }}>Profit</div>
+                <div className="stat-value" style={{ color: (client.financialSummary?.profit ?? 0) >= 0 ? 'var(--success)' : 'var(--danger)' }}>
+                  {formatCurrency(client.financialSummary?.profit ?? 0)}
                 </div>
               </div>
               <div className="stat-card" style={{ padding: '12px' }}>

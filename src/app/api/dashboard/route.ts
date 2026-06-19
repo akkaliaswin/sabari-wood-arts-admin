@@ -35,9 +35,9 @@ export async function GET() {
       0
     );
 
-    // Global revenue = sum of sellingPrice of all work items in non-deleted projects
+    // Global revenue = sum of quotedAmount of all non-deleted projects
     const totalRevenue = allProjects.reduce(
-      (sum: number, p: ProjectWithRelations) => sum + p.workItems.reduce((s: number, item: WorkItem) => s + Number(item.sellingPrice), 0),
+      (sum: number, p: ProjectWithRelations) => sum + Number(p.quotedAmount),
       0
     );
 
@@ -53,15 +53,16 @@ export async function GET() {
       0
     );
 
-    // Estimated Gross Profit (All time)
+    // Profit = Quoted Amount - Material Cost - Labour Cost
     const grossProfit = totalRevenue - totalMaterialCost - totalLabourCost;
     const averageMargin = totalRevenue > 0 ? (grossProfit / totalRevenue) * 100 : 0;
 
-    // Pending collections on active projects: Quoted Amount - Payments Received (summed per active project)
-    const pendingCollections = activeProjects.reduce((sum: number, p: ProjectWithRelations) => {
+    // Pending collections: Quoted Amount - Payments Received (summed per project, capped at 0)
+    const pendingCollections = allProjects.reduce((sum: number, p: ProjectWithRelations) => {
+      if (p.status === 'Cancelled') return sum;
       const pPayments = p.payments.reduce((s: number, pay: Payment) => s + Number(pay.amount), 0);
-      const pending = Number(p.quotedAmount) - pPayments;
-      return sum + (pending > 0 ? pending : 0);
+      const pending = Math.max(0, Number(p.quotedAmount) - pPayments);
+      return sum + pending;
     }, 0);
 
     // Gross margin for active projects = Total Active Quoted Value - Active Material Costs - Active Labor Costs
@@ -79,22 +80,16 @@ export async function GET() {
     const workTypeStats: Record<string, { revenue: number; cost: number; profit: number }> = {};
     allProjects.forEach((p: ProjectWithRelations) => {
       p.workItems.forEach((item: WorkItem) => {
-        const itemMaterials = p.materialPurchases
-          .filter((m: MaterialPurchase) => m.workItemId === item.id)
-          .reduce((sum: number, m: MaterialPurchase) => sum + Number(m.amount), 0);
-        const itemLabour = p.labourCosts
-          .filter((l: LabourCost) => l.workItemId === item.id)
-          .reduce((sum: number, l: LabourCost) => sum + Number(l.amount), 0);
-
         const type = item.workType;
         const sellPrice = Number(item.sellingPrice);
-        const profit = sellPrice - itemMaterials - itemLabour;
+        const actualCost = Number((item as any).actualCost || 0);
+        const profit = sellPrice - actualCost;
 
         if (!workTypeStats[type]) {
           workTypeStats[type] = { revenue: 0, cost: 0, profit: 0 };
         }
         workTypeStats[type].revenue += sellPrice;
-        workTypeStats[type].cost += itemMaterials + itemLabour;
+        workTypeStats[type].cost += actualCost;
         workTypeStats[type].profit += profit;
       });
     });
@@ -115,10 +110,10 @@ export async function GET() {
     let mostProfitableProject = 'None';
     let maxProjectProfit = -Infinity;
     allProjects.forEach((p: ProjectWithRelations) => {
-      const pRevenue = p.workItems.reduce((sum: number, item: WorkItem) => sum + Number(item.sellingPrice), 0);
+      const pQuoted = Number(p.quotedAmount);
       const pMaterials = p.materialPurchases.reduce((sum: number, m: MaterialPurchase) => sum + Number(m.amount), 0);
       const pLabour = p.labourCosts.reduce((sum: number, l: LabourCost) => sum + Number(l.amount), 0);
-      const pProfit = pRevenue - pMaterials - pLabour;
+      const pProfit = pQuoted - pMaterials - pLabour;
 
       if (pProfit > maxProjectProfit) {
         maxProjectProfit = pProfit;
@@ -188,6 +183,8 @@ export async function GET() {
       highestPaidLabourer = 'None';
     }
 
+    const netCashPosition = totalCollectionsReceived - totalMaterialCost - globalTotalLabourCost;
+
     return NextResponse.json({
       totalActiveProjects,
       totalProjectValue,
@@ -200,6 +197,7 @@ export async function GET() {
       totalRevenue,
       grossProfit,
       averageMargin,
+      netCashPosition,
       mostProfitableWorkType,
       mostProfitableProject,
       // Pipeline metrics
@@ -211,6 +209,10 @@ export async function GET() {
         totalLabourCost: globalTotalLabourCost,
         labourCostThisMonth,
         highestPaidLabourer,
+      },
+    }, {
+      headers: {
+        'Cache-Control': 'no-store, max-age=0',
       },
     });
   } catch (error) {

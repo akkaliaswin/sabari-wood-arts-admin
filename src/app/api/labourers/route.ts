@@ -5,15 +5,29 @@ export async function GET(req: NextRequest) {
   try {
     const searchParams = req.nextUrl.searchParams;
     const search = searchParams.get('search') || '';
+    const searchField = searchParams.get('searchField') || ''; // 'name' or 'phone'
     const skill = searchParams.get('skill') || '';
 
+    const whereClause: any = {};
+    if (skill) {
+      whereClause.skillType = skill;
+    }
+
+    if (search) {
+      if (searchField === 'name') {
+        whereClause.name = { contains: search, mode: 'insensitive' };
+      } else if (searchField === 'phone') {
+        whereClause.phone = { contains: search, mode: 'insensitive' };
+      } else {
+        whereClause.OR = [
+          { name: { contains: search, mode: 'insensitive' } },
+          { phone: { contains: search, mode: 'insensitive' } },
+        ];
+      }
+    }
+
     const labourers = await prisma.labourer.findMany({
-      where: {
-        AND: [
-          search ? { name: { contains: search, mode: 'insensitive' } } : {},
-          skill ? { skillType: skill } : {},
-        ],
-      },
+      where: whereClause,
       orderBy: { createdAt: 'desc' },
     });
 
@@ -33,10 +47,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Name, Phone, and Skill Type are required' }, { status: 400 });
     }
 
+    // Phone validations: Exactly 10 digits, only digits allowed.
+    const phoneRegex = /^\d{10}$/;
+    if (!phoneRegex.test(phone.trim())) {
+      return NextResponse.json({ error: 'Please enter a valid 10-digit mobile number.' }, { status: 400 });
+    }
+
     const newLabourer = await prisma.labourer.create({
       data: {
-        name,
-        phone,
+        name: name.trim(),
+        phone: phone.trim(),
         address: address || null,
         skillType,
         joiningDate: joiningDate ? new Date(joiningDate) : new Date(),

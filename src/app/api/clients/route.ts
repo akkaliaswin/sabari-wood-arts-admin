@@ -5,25 +5,36 @@ export async function GET(req: NextRequest) {
   try {
     const searchParams = req.nextUrl.searchParams;
     const search = searchParams.get('search') || '';
+    const searchField = searchParams.get('searchField') || ''; // 'name' or 'phone'
+
+    const whereClause: any = { deletedAt: null };
+
+    if (search) {
+      if (searchField === 'name') {
+        whereClause.name = { contains: search, mode: 'insensitive' };
+      } else if (searchField === 'phone') {
+        whereClause.phone = { contains: search, mode: 'insensitive' };
+      } else {
+        // Fallback generic search
+        whereClause.OR = [
+          { name: { contains: search, mode: 'insensitive' } },
+          { phone: { contains: search, mode: 'insensitive' } },
+        ];
+      }
+    }
 
     const clients = await prisma.client.findMany({
-      where: {
-        deletedAt: null,
-        OR: search
-          ? [
-              { name: { contains: search, mode: 'insensitive' } },
-              { phone: { contains: search, mode: 'insensitive' } },
-              { clientCode: { contains: search, mode: 'insensitive' } },
-              { location: { contains: search, mode: 'insensitive' } },
-            ]
-          : undefined,
-      },
+      where: whereClause,
       orderBy: {
         createdAt: 'desc',
       },
     });
 
-    return NextResponse.json(clients);
+    return NextResponse.json(clients, {
+      headers: {
+        'Cache-Control': 'no-store, max-age=0',
+      },
+    });
   } catch (error) {
     console.error('Error fetching clients:', error);
     return NextResponse.json({ error: 'Failed to fetch clients' }, { status: 500 });
@@ -39,15 +50,24 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Name and Phone are required' }, { status: 400 });
     }
 
+    // Phone validations: Exactly 10 digits, only digits allowed.
+    const phoneRegex = /^\d{10}$/;
+    if (!phoneRegex.test(phone.trim())) {
+      return NextResponse.json({ error: 'Please enter a valid 10-digit mobile number.' }, { status: 400 });
+    }
+    if (alternatePhone && alternatePhone.trim() && !phoneRegex.test(alternatePhone.trim())) {
+      return NextResponse.json({ error: 'Please enter a valid 10-digit mobile number.' }, { status: 400 });
+    }
+
     const newClient = await prisma.client.create({
       data: {
-        name,
-        phone,
-        alternatePhone: alternatePhone || null,
-        location: location || null,
-        address: address || null,
-        referredBy: referredBy || null,
-        remarks: remarks || null,
+        name: name.trim(),
+        phone: phone.trim(),
+        alternatePhone: alternatePhone ? alternatePhone.trim() : null,
+        location: location ? location.trim() : null,
+        address: address ? address.trim() : null,
+        referredBy: referredBy ? referredBy.trim() : null,
+        remarks: remarks ? remarks.trim() : null,
       },
     });
 

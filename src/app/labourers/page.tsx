@@ -31,6 +31,7 @@ export default function LabourersPage() {
 
   // Search and filter states
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchField, setSearchField] = useState('name'); // 'name' or 'phone'
   const [skillFilter, setSkillFilter] = useState('');
 
   // Register form states
@@ -76,8 +77,10 @@ export default function LabourersPage() {
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || !phone || !skillType) {
-      alert('Please fill out all required fields.');
+    // Phone validations: Exactly 10 digits, only digits allowed.
+    const phoneRegex = /^\d{10}$/;
+    if (!phoneRegex.test(phone.trim())) {
+      alert('Please enter a valid 10-digit mobile number.');
       return;
     }
 
@@ -131,8 +134,17 @@ export default function LabourersPage() {
   };
 
   const filteredLabourers = labourers.filter((lab) => {
-    const matchesSearch = lab.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                          lab.labourCode.toLowerCase().includes(searchQuery.toLowerCase());
+    let matchesSearch = true;
+    if (searchQuery.trim()) {
+      const query = searchQuery.trim().toLowerCase();
+      if (searchField === 'name') {
+        matchesSearch = lab.name.toLowerCase().includes(query);
+      } else if (searchField === 'phone') {
+        matchesSearch = lab.phone.includes(query);
+      } else {
+        matchesSearch = lab.name.toLowerCase().includes(query) || lab.phone.includes(query);
+      }
+    }
     const matchesSkill = skillFilter ? lab.skillType === skillFilter : true;
     return matchesSearch && matchesSkill;
   });
@@ -182,12 +194,23 @@ export default function LabourersPage() {
 
       {/* Filter and Search Bar */}
       <div className="card" style={{ background: '#faf9f6', padding: '16px', marginBottom: '20px' }}>
-        <div className="form-row" style={{ marginBottom: 0 }}>
-          <div className="form-group" style={{ flex: 2 }}>
+        <div className="form-row" style={{ marginBottom: 0, alignItems: 'center' }}>
+          <div className="form-group" style={{ width: '160px', marginBottom: 0 }}>
+            <label className="form-label" style={{ fontWeight: '500' }}>Search Field</label>
+            <select
+              className="form-control"
+              value={searchField}
+              onChange={(e) => { setSearchField(e.target.value); setSearchQuery(''); }}
+            >
+              <option value="name">Labour Name</option>
+              <option value="phone">Phone Number</option>
+            </select>
+          </div>
+          <div className="form-group" style={{ flex: 2, marginBottom: 0 }}>
             <label className="form-label" style={{ fontWeight: '500' }}>Search Labourers</label>
             <input
               type="text"
-              placeholder="Search by name or code..."
+              placeholder={searchField === 'name' ? "Enter name..." : "Enter 10-digit phone..."}
               className="form-control"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}

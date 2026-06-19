@@ -6,24 +6,35 @@ export async function GET(req: NextRequest) {
   try {
     const searchParams = req.nextUrl.searchParams;
     const search = searchParams.get('search') || '';
+    const searchField = searchParams.get('searchField') || ''; // 'name' or 'code'
     const status = searchParams.get('status') || '';
 
-    const projects = await prisma.project.findMany({
-      where: {
+    const whereClause: any = {
+      deletedAt: null,
+      client: {
         deletedAt: null,
-        client: {
-          deletedAt: null, // Only fetch projects for non-deleted clients
-        },
-        status: status ? status : undefined,
-        OR: search
-          ? [
-              { projectName: { contains: search, mode: 'insensitive' } },
-              { projectCode: { contains: search, mode: 'insensitive' } },
-              { client: { name: { contains: search, mode: 'insensitive' } } },
-              { projectLocation: { contains: search, mode: 'insensitive' } },
-            ]
-          : undefined,
       },
+    };
+
+    if (status) {
+      whereClause.status = status;
+    }
+
+    if (search) {
+      if (searchField === 'name') {
+        whereClause.projectName = { contains: search, mode: 'insensitive' };
+      } else if (searchField === 'code') {
+        whereClause.projectCode = { contains: search, mode: 'insensitive' };
+      } else {
+        whereClause.OR = [
+          { projectName: { contains: search, mode: 'insensitive' } },
+          { projectCode: { contains: search, mode: 'insensitive' } },
+        ];
+      }
+    }
+
+    const projects = await prisma.project.findMany({
+      where: whereClause,
       include: {
         client: {
           select: {
@@ -45,7 +56,7 @@ export async function GET(req: NextRequest) {
     // Map projects to include calculated fields (like total payments received and last payment date)
     const formattedProjects = (projects as unknown as any[]).map((p: any) => {
       const receivedAmount = p.payments.reduce((sum: number, pay: { amount: any }) => sum + Number(pay.amount), 0);
-      const pendingCollection = Number(p.quotedAmount) - receivedAmount;
+      const pendingCollection = p.status === 'Cancelled' ? 0 : Math.max(0, Number(p.quotedAmount) - receivedAmount);
 
       let lastPaymentDate: string | null = null;
       if (p.payments.length > 0) {
@@ -62,7 +73,11 @@ export async function GET(req: NextRequest) {
       };
     });
 
-    return NextResponse.json(formattedProjects);
+    return NextResponse.json(formattedProjects, {
+      headers: {
+        'Cache-Control': 'no-store, max-age=0',
+      },
+    });
   } catch (error) {
     console.error('Error fetching projects:', error);
     return NextResponse.json({ error: 'Failed to fetch projects' }, { status: 500 });

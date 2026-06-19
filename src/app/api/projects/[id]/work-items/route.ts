@@ -8,21 +8,29 @@ export async function POST(
   try {
     const { id: projectId } = await params;
     const body = await req.json();
-    const { workType, description, quantity, unitPrice, sellingPrice, status, remarks } = body;
+    const { workType, description, quantity, unitPrice, sellingPrice, actualCost, status, remarks } = body;
 
     if (!workType) {
       return NextResponse.json({ error: 'Work Type is required' }, { status: 400 });
     }
 
     const qty = quantity ? Number(quantity) : 1.0;
-    const price = unitPrice ? Number(unitPrice) : 0.0;
-    const totalPrice = qty * price;
-    const sellPrice = sellingPrice !== undefined ? Number(sellingPrice) : totalPrice;
+    let sellPrice = 0.0;
+    let price = 0.0;
+    let totalPrice = 0.0;
+    const actualWorkCost = actualCost !== undefined ? Number(actualCost) : 0.0;
 
-    const newWorkItem = await prisma.$transaction(async (tx: {
-      workItem: { create: (args: any) => Promise<any> };
-      projectActivity: { create: (args: any) => Promise<any> };
-    }) => {
+    if (sellingPrice !== undefined) {
+      sellPrice = Number(sellingPrice);
+      totalPrice = sellPrice;
+      price = qty > 0 ? sellPrice / qty : 0.0;
+    } else if (unitPrice !== undefined) {
+      price = Number(unitPrice);
+      totalPrice = qty * price;
+      sellPrice = totalPrice;
+    }
+
+    const newWorkItem = await prisma.$transaction(async (tx: any) => {
       const item = await tx.workItem.create({
         data: {
           projectId,
@@ -32,6 +40,7 @@ export async function POST(
           unitPrice: price,
           totalPrice,
           sellingPrice: sellPrice,
+          actualCost: actualWorkCost,
           status: status || 'Pending',
           remarks: remarks || null,
         },
@@ -41,7 +50,7 @@ export async function POST(
         data: {
           projectId,
           activityType: 'WORK_ITEM_ADDED',
-          description: `Work Item added: ${workType} (Qty: ${qty}, Price: ₹${price}, Selling Price: ₹${sellPrice})`,
+          description: `Work Item added: ${workType} (Qty: ${qty}, Selling Price: ₹${sellPrice}, Actual Cost: ₹${actualWorkCost})`,
         },
       });
 
@@ -62,7 +71,7 @@ export async function PUT(
   try {
     const { id: projectId } = await params;
     const body = await req.json();
-    const { itemId, workType, description, quantity, unitPrice, sellingPrice, status, remarks } = body;
+    const { itemId, workType, description, quantity, unitPrice, sellingPrice, actualCost, status, remarks } = body;
 
     if (!itemId) {
       return NextResponse.json({ error: 'Item ID is required' }, { status: 400 });
@@ -77,21 +86,23 @@ export async function PUT(
     }
 
     const qty = quantity !== undefined ? Number(quantity) : undefined;
-    const price = unitPrice !== undefined ? Number(unitPrice) : undefined;
-    const sellPrice = sellingPrice !== undefined ? Number(sellingPrice) : undefined;
-    
+    let sellPrice = sellingPrice !== undefined ? Number(sellingPrice) : undefined;
+    let price = unitPrice !== undefined ? Number(unitPrice) : undefined;
     let totalPrice = undefined;
-    if (qty !== undefined || price !== undefined) {
-      const finalQty = qty !== undefined ? qty : Number(currentItem.quantity);
+    const actualWorkCost = actualCost !== undefined ? Number(actualCost) : undefined;
+
+    const finalQty = qty !== undefined ? qty : Number(currentItem.quantity);
+
+    if (sellPrice !== undefined) {
+      totalPrice = sellPrice;
+      price = finalQty > 0 ? sellPrice / finalQty : 0.0;
+    } else if (price !== undefined || qty !== undefined) {
       const finalPrice = price !== undefined ? price : Number(currentItem.unitPrice);
       totalPrice = finalQty * finalPrice;
+      sellPrice = totalPrice;
     }
 
-    const updatedWorkItem = await prisma.$transaction(async (tx: {
-      workItemStatusHistory: { create: (args: any) => Promise<any> };
-      projectActivity: { create: (args: any) => Promise<any> };
-      workItem: { update: (args: any) => Promise<any> };
-    }) => {
+    const updatedWorkItem = await prisma.$transaction(async (tx: any) => {
       const isStatusChanged = status && status !== currentItem.status;
 
       if (isStatusChanged) {
@@ -132,6 +143,7 @@ export async function PUT(
           unitPrice: price,
           totalPrice,
           sellingPrice: sellPrice,
+          actualCost: actualWorkCost,
           status,
           remarks,
         },
@@ -165,10 +177,7 @@ export async function DELETE(
     });
 
     if (currentItem) {
-      await prisma.$transaction(async (tx: {
-        projectActivity: { create: (args: any) => Promise<any> };
-        workItem: { delete: (args: any) => Promise<any> };
-      }) => {
+      await prisma.$transaction(async (tx: any) => {
         await tx.projectActivity.create({
           data: {
             projectId,
