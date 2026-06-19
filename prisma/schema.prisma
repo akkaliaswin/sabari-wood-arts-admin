@@ -1,0 +1,192 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+}
+
+model Client {
+  id              String    @id @default(uuid()) @db.Uuid
+  clientCode      String    @unique @default(dbgenerated("'C' || lpad(nextval('client_code_seq')::text, 4, '0')")) @map("client_code")
+  name            String
+  phone           String
+  alternatePhone  String?   @map("alternate_phone")
+  location        String?
+  address         String?
+  referredBy      String?   @map("referred_by")
+  remarks         String?
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  deletedAt       DateTime? @map("deleted_at")
+
+  projects        Project[]
+
+  @@map("clients")
+}
+
+model Project {
+  id                      String    @id @default(uuid()) @db.Uuid
+  projectCode             String    @unique @default(dbgenerated("'P' || lpad(nextval('project_code_seq')::text, 4, '0')")) @map("project_code")
+  clientId                String    @db.Uuid @map("client_id")
+  projectName             String    @map("project_name")
+  projectType             String?   @map("project_type")
+  projectLocation         String?   @map("project_location")
+  status                  String    @default("Lead")
+  quotedAmount            Decimal   @default(0.00) @db.Decimal(12, 2) @map("quoted_amount")
+  startDate               DateTime? @map("start_date") @db.Date
+  expectedCompletionDate  DateTime? @map("expected_completion_date") @db.Date
+  actualCompletionDate    DateTime? @map("actual_completion_date") @db.Date
+  notes                   String?
+  createdAt               DateTime  @default(now()) @map("created_at")
+  updatedAt               DateTime  @updatedAt @map("updated_at")
+  deletedAt               DateTime? @map("deleted_at")
+
+  client                  Client    @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  workItems               WorkItem[]
+  materialPurchases       MaterialPurchase[]
+  payments                Payment[]
+  labourCosts             LabourCost[]
+  statusHistory           ProjectStatusHistory[]
+  activities              ProjectActivity[]
+
+  @@map("projects")
+}
+
+model WorkItem {
+  id            String   @id @default(uuid()) @db.Uuid
+  workCode      String   @unique @default(dbgenerated("'W' || lpad(nextval('work_code_seq')::text, 4, '0')")) @map("work_code")
+  projectId     String   @db.Uuid @map("project_id")
+  workType      String   @map("work_type")
+  description   String?
+  quantity      Decimal  @default(1.00) @db.Decimal(10, 2)
+  unitPrice     Decimal  @default(0.00) @db.Decimal(12, 2) @map("unit_price")
+  totalPrice    Decimal  @default(0.00) @db.Decimal(12, 2) @map("total_price")
+  sellingPrice  Decimal  @default(0.00) @db.Decimal(12, 2) @map("selling_price")
+  status        String   @default("Pending")
+  remarks       String?
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  project           Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  materialPurchases MaterialPurchase[]
+  labourCosts       LabourCost[]
+  statusHistory     WorkItemStatusHistory[]
+
+  @@map("work_items")
+}
+
+model MaterialPurchase {
+  id            String   @id @default(uuid()) @db.Uuid
+  materialCode  String   @unique @default(dbgenerated("'M' || lpad(nextval('material_code_seq')::text, 4, '0')")) @map("material_code")
+  projectId     String   @db.Uuid @map("project_id")
+  workItemId    String?  @db.Uuid @map("work_item_id")
+  purchaseDate  DateTime @map("purchase_date") @db.Date
+  materialName  String   @map("material_name")
+  vendor        String?
+  quantity      Decimal  @default(1.00) @db.Decimal(10, 2)
+  unit          String?
+  amount        Decimal  @default(0.00) @db.Decimal(12, 2)
+  billNumber    String?  @map("bill_number")
+  remarks       String?
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  workItem      WorkItem? @relation(fields: [workItemId], references: [id], onDelete: SetNull)
+
+  @@map("material_purchases")
+}
+
+model Payment {
+  id              String   @id @default(uuid()) @db.Uuid
+  paymentCode     String   @unique @default(dbgenerated("'PM' || lpad(nextval('payment_code_seq')::text, 4, '0')")) @map("payment_code")
+  projectId       String   @db.Uuid @map("project_id")
+  paymentDate     DateTime @map("payment_date") @db.Date
+  amount          Decimal  @default(0.00) @db.Decimal(12, 2)
+  paymentMode     String   @map("payment_mode")
+  referenceNumber String?  @map("reference_number")
+  remarks         String?
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  project         Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("payments")
+}
+
+model LabourCost {
+  id              String   @id @default(uuid()) @db.Uuid
+  labourCode      String   @unique @default(dbgenerated("'L' || lpad(nextval('labour_code_seq')::text, 4, '0')")) @map("labour_code")
+  projectId       String   @db.Uuid @map("project_id")
+  labourerId      String?  @db.Uuid @map("labourer_id")
+  workItemId      String?  @db.Uuid @map("work_item_id")
+  carpenterName   String   @map("carpenter_name")
+  workDescription String?  @map("work_description")
+  amount          Decimal  @default(0.00) @db.Decimal(12, 2)
+  paymentDate     DateTime @map("payment_date") @db.Date
+  remarks         String?
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  project         Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  workItem        WorkItem? @relation(fields: [workItemId], references: [id], onDelete: SetNull)
+  labourer        Labourer? @relation(fields: [labourerId], references: [id], onDelete: SetNull)
+
+  @@map("labour_costs")
+}
+
+model Labourer {
+  id            String   @id @default(uuid()) @db.Uuid
+  labourCode    String   @unique @default(dbgenerated("'LAB' || lpad(nextval('labourer_code_seq')::text, 4, '0')")) @map("labour_code")
+  name          String
+  phone         String
+  address       String?
+  skillType     String   @map("skill_type")
+  joiningDate   DateTime @map("joining_date") @db.Date
+  activeStatus  Boolean  @default(true) @map("active_status")
+  notes         String?
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  labourCosts   LabourCost[]
+
+  @@map("labourers")
+}
+
+model ProjectStatusHistory {
+  id              String   @id @default(uuid()) @db.Uuid
+  projectId       String   @db.Uuid @map("project_id")
+  previousStatus  String   @map("previous_status")
+  newStatus       String   @map("new_status")
+  changedAt       DateTime @default(now()) @map("changed_at")
+
+  project         Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("project_status_history")
+}
+
+model WorkItemStatusHistory {
+  id              String   @id @default(uuid()) @db.Uuid
+  workItemId      String   @db.Uuid @map("work_item_id")
+  previousStatus  String   @map("previous_status")
+  newStatus       String   @map("new_status")
+  updatedAt       DateTime @default(now()) @map("updated_at")
+
+  workItem        WorkItem @relation(fields: [workItemId], references: [id], onDelete: Cascade)
+
+  @@map("work_item_status_history")
+}
+
+model ProjectActivity {
+  id            String   @id @default(uuid()) @db.Uuid
+  projectId     String   @db.Uuid @map("project_id")
+  activityType  String   @map("activity_type")
+  description   String
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("project_activities")
+}
+
