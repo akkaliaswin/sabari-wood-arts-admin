@@ -1,16 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { Project, Prisma } from '@prisma/client';
-
-type ProjectWithPayments = Project & {
-  payments: { amount: Prisma.Decimal }[];
-  client: {
-    id: string;
-    name: string;
-    clientCode: string;
-    phone: string;
-  };
-};
+import { ProjectWithPayments } from '@/types/db';
 
 export async function GET(req: NextRequest) {
   try {
@@ -54,7 +44,7 @@ export async function GET(req: NextRequest) {
 
     // Map projects to include calculated simple fields (like total payments received so far)
     const formattedProjects = (projects as unknown as ProjectWithPayments[]).map((p: ProjectWithPayments) => {
-      const receivedAmount = p.payments.reduce((sum: number, pay: { amount: Prisma.Decimal }) => sum + Number(pay.amount), 0);
+      const receivedAmount = p.payments.reduce((sum: number, pay: { amount: any }) => sum + Number(pay.amount), 0);
       const pendingCollection = Number(p.quotedAmount) - receivedAmount;
       return {
         ...p,

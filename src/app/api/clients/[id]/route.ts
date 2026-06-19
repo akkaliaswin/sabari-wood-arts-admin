@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { Project } from '@prisma/client';
+import { Project } from '@/types/db';
 
 export async function GET(
   req: NextRequest,

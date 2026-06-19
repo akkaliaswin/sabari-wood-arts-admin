@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { Prisma, Project, WorkItem, MaterialPurchase, LabourCost } from '@prisma/client';
+import { ProjectReportPayload, WorkItem, MaterialPurchase, LabourCost } from '@/types/db';
 
 export interface ReportRow {
   projectId: string;
@@ -15,17 +15,6 @@ export interface ReportRow {
   marginPercentage: number;
 }
 
-export type ProjectReportPayload = Project & {
-  client: {
-    id: string;
-    name: string;
-    clientCode: string;
-  };
-  workItems: WorkItem[];
-  materialPurchases: MaterialPurchase[];
-  labourCosts: LabourCost[];
-};
-
 export async function GET(req: NextRequest) {
   try {
     const searchParams = req.nextUrl.searchParams;
@@ -36,7 +25,7 @@ export async function GET(req: NextRequest) {
     const workType = searchParams.get('workType') || '';
 
     // Build query filters for projects
-    const projectWhereClause: Prisma.ProjectWhereInput = {
+    const projectWhereClause: any = {
       deletedAt: null,
       client: {
         deletedAt: null,

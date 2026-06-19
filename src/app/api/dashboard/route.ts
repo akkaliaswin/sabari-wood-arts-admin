@@ -1,13 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { Project, WorkItem, Payment, MaterialPurchase, LabourCost } from '@prisma/client';
-
-export interface ProjectWithRelations extends Project {
-  workItems: WorkItem[];
-  payments: Payment[];
-  materialPurchases: MaterialPurchase[];
-  labourCosts: LabourCost[];
-}
+import { ProjectWithRelations, WorkItem, Payment, MaterialPurchase, LabourCost } from '@/types/db';
 
 export async function GET() {
   try {
