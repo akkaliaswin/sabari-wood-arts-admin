@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { Prisma } from '@prisma/client';
 
 export async function POST(
   req: NextRequest,
@@ -15,7 +14,10 @@ export async function POST(
       return NextResponse.json({ error: 'Purchase Date, Material Name, and Amount are required' }, { status: 400 });
     }
 
-    const newMaterial = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    const newMaterial = await prisma.$transaction(async (tx: {
+      materialPurchase: { create: (args: any) => Promise<any> };
+      projectActivity: { create: (args: any) => Promise<any> };
+    }) => {
       const mat = await tx.materialPurchase.create({
         data: {
           projectId,
@@ -102,7 +104,10 @@ export async function DELETE(
     });
 
     if (currentMat) {
-      await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      await prisma.$transaction(async (tx: {
+        projectActivity: { create: (args: any) => Promise<any> };
+        materialPurchase: { delete: (args: any) => Promise<any> };
+      }) => {
         await tx.projectActivity.create({
           data: {
             projectId,

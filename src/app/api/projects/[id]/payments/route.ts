@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { Prisma } from '@prisma/client';
 
 export async function POST(
   req: NextRequest,
@@ -20,7 +19,10 @@ export async function POST(
       return NextResponse.json({ error: `Payment Mode must be one of: ${validModes.join(', ')}` }, { status: 400 });
     }
 
-    const newPayment = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    const newPayment = await prisma.$transaction(async (tx: {
+      payment: { create: (args: any) => Promise<any> };
+      projectActivity: { create: (args: any) => Promise<any> };
+    }) => {
       const pay = await tx.payment.create({
         data: {
           projectId,
@@ -106,7 +108,10 @@ export async function DELETE(
     });
 
     if (currentPayment) {
-      await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      await prisma.$transaction(async (tx: {
+        projectActivity: { create: (args: any) => Promise<any> };
+        payment: { delete: (args: any) => Promise<any> };
+      }) => {
         await tx.projectActivity.create({
           data: {
             projectId,

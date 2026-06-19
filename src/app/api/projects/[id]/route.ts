@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { WorkItem, MaterialPurchase, Payment, LabourCost } from '@/types/db';
-import { Prisma } from '@prisma/client';
 
 export async function GET(
   req: NextRequest,
@@ -159,7 +158,11 @@ export async function PUT(
 
     const finalProjectName = projectName || currentProject.projectName;
 
-    const updatedProject = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    const updatedProject = await prisma.$transaction(async (tx: {
+      projectStatusHistory: { create: (args: any) => Promise<any> };
+      projectActivity: { create: (args: any) => Promise<any> };
+      project: { update: (args: any) => Promise<any> };
+    }) => {
       const isStatusChanged = status && status !== currentProject.status;
 
       if (isStatusChanged) {

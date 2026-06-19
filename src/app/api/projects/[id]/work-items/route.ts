@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { Prisma } from '@prisma/client';
 
 export async function POST(
   req: NextRequest,
@@ -20,7 +19,10 @@ export async function POST(
     const totalPrice = qty * price;
     const sellPrice = sellingPrice !== undefined ? Number(sellingPrice) : totalPrice;
 
-    const newWorkItem = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    const newWorkItem = await prisma.$transaction(async (tx: {
+      workItem: { create: (args: any) => Promise<any> };
+      projectActivity: { create: (args: any) => Promise<any> };
+    }) => {
       const item = await tx.workItem.create({
         data: {
           projectId,
@@ -85,7 +87,11 @@ export async function PUT(
       totalPrice = finalQty * finalPrice;
     }
 
-    const updatedWorkItem = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    const updatedWorkItem = await prisma.$transaction(async (tx: {
+      workItemStatusHistory: { create: (args: any) => Promise<any> };
+      projectActivity: { create: (args: any) => Promise<any> };
+      workItem: { update: (args: any) => Promise<any> };
+    }) => {
       const isStatusChanged = status && status !== currentItem.status;
 
       if (isStatusChanged) {
@@ -159,7 +165,10 @@ export async function DELETE(
     });
 
     if (currentItem) {
-      await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      await prisma.$transaction(async (tx: {
+        projectActivity: { create: (args: any) => Promise<any> };
+        workItem: { delete: (args: any) => Promise<any> };
+      }) => {
         await tx.projectActivity.create({
           data: {
             projectId,
