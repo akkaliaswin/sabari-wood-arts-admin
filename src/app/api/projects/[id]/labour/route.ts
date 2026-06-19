@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { Prisma } from '@prisma/client';
 
 export async function POST(
   req: NextRequest,
@@ -24,7 +25,7 @@ export async function POST(
       return NextResponse.json({ error: 'Labourer Name, Amount, and Payment Date are required' }, { status: 400 });
     }
 
-    const newLabour = await prisma.$transaction(async (tx) => {
+    const newLabour = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const cost = await tx.labourCost.create({
         data: {
           projectId,
@@ -117,7 +118,7 @@ export async function DELETE(
     });
 
     if (currentLabour) {
-      await prisma.$transaction(async (tx) => {
+      await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
         await tx.projectActivity.create({
           data: {
             projectId,

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { Prisma } from '@prisma/client';
 
 export async function POST(
   req: NextRequest,
@@ -19,7 +20,7 @@ export async function POST(
       return NextResponse.json({ error: `Payment Mode must be one of: ${validModes.join(', ')}` }, { status: 400 });
     }
 
-    const newPayment = await prisma.$transaction(async (tx) => {
+    const newPayment = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const pay = await tx.payment.create({
         data: {
           projectId,
@@ -81,7 +82,7 @@ export async function PUT(
     });
 
     return NextResponse.json(updatedPayment);
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error updating payment:', error);
     return NextResponse.json({ error: 'Failed to update payment' }, { status: 500 });
   }
@@ -105,7 +106,7 @@ export async function DELETE(
     });
 
     if (currentPayment) {
-      await prisma.$transaction(async (tx) => {
+      await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
         await tx.projectActivity.create({
           data: {
             projectId,
@@ -124,7 +125,7 @@ export async function DELETE(
     }
 
     return NextResponse.json({ message: 'Payment deleted successfully' });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error deleting payment:', error);
     return NextResponse.json({ error: 'Failed to delete payment' }, { status: 500 });
   }

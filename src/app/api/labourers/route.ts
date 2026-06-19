@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
     });
 
     return NextResponse.json(labourers);
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error fetching labourers:', error);
     return NextResponse.json({ error: 'Failed to fetch labourers' }, { status: 500 });
   }
@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
     });
 
     return NextResponse.json(newLabourer, { status: 201 });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error creating labourer:', error);
     return NextResponse.json({ error: 'Failed to create labourer' }, { status: 500 });
   }

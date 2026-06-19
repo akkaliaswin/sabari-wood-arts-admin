@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { Prisma } from '@prisma/client';
 
 export async function POST(
   req: NextRequest,
@@ -19,7 +20,7 @@ export async function POST(
     const totalPrice = qty * price;
     const sellPrice = sellingPrice !== undefined ? Number(sellingPrice) : totalPrice;
 
-    const newWorkItem = await prisma.$transaction(async (tx) => {
+    const newWorkItem = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const item = await tx.workItem.create({
         data: {
           projectId,
@@ -84,7 +85,7 @@ export async function PUT(
       totalPrice = finalQty * finalPrice;
     }
 
-    const updatedWorkItem = await prisma.$transaction(async (tx) => {
+    const updatedWorkItem = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const isStatusChanged = status && status !== currentItem.status;
 
       if (isStatusChanged) {
@@ -134,7 +135,7 @@ export async function PUT(
     });
 
     return NextResponse.json(updatedWorkItem);
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error updating work item:', error);
     return NextResponse.json({ error: 'Failed to update work item' }, { status: 500 });
   }
@@ -158,7 +159,7 @@ export async function DELETE(
     });
 
     if (currentItem) {
-      await prisma.$transaction(async (tx) => {
+      await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
         await tx.projectActivity.create({
           data: {
             projectId,
@@ -177,7 +178,7 @@ export async function DELETE(
     }
 
     return NextResponse.json({ message: 'Work item deleted successfully' });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error deleting work item:', error);
     return NextResponse.json({ error: 'Failed to delete work item' }, { status: 500 });
   }

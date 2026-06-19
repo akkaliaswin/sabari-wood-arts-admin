@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { Prisma } from '@prisma/client';
 
 export async function POST(
   req: NextRequest,
@@ -14,7 +15,7 @@ export async function POST(
       return NextResponse.json({ error: 'Purchase Date, Material Name, and Amount are required' }, { status: 400 });
     }
 
-    const newMaterial = await prisma.$transaction(async (tx) => {
+    const newMaterial = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const mat = await tx.materialPurchase.create({
         data: {
           projectId,
@@ -77,7 +78,7 @@ export async function PUT(
     });
 
     return NextResponse.json(updatedMaterial);
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error updating material purchase:', error);
     return NextResponse.json({ error: 'Failed to update material purchase' }, { status: 500 });
   }
@@ -101,7 +102,7 @@ export async function DELETE(
     });
 
     if (currentMat) {
-      await prisma.$transaction(async (tx) => {
+      await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
         await tx.projectActivity.create({
           data: {
             projectId,
@@ -120,7 +121,7 @@ export async function DELETE(
     }
 
     return NextResponse.json({ message: 'Material purchase deleted successfully' });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error deleting material purchase:', error);
     return NextResponse.json({ error: 'Failed to delete material purchase' }, { status: 500 });
   }
