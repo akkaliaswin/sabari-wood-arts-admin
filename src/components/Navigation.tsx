@@ -11,8 +11,10 @@ export default function Navigation() {
     { name: 'Dashboard', href: '/', icon: '📊' },
     { name: 'Clients', href: '/clients', icon: '👥' },
     { name: 'Projects', href: '/projects', icon: '🪵' },
-    { name: 'Labourers', href: '/labourers', icon: '🪚' },
+    { name: 'Payments', href: '/payments', icon: '💳' },
+    { name: 'Labour', href: '/labourers', icon: '🪚' },
     { name: 'Reports', href: '/reports', icon: '📋' },
+    { name: 'Settings', href: '/settings', icon: '⚙️' },
   ];
 
   const isActive = (href: string) => {

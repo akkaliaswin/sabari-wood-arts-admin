@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
           },
         },
         payments: {
-          select: { amount: true },
+          select: { amount: true, paymentDate: true },
         },
       },
       orderBy: {
@@ -42,14 +42,23 @@ export async function GET(req: NextRequest) {
       },
     });
 
-    // Map projects to include calculated simple fields (like total payments received so far)
-    const formattedProjects = (projects as unknown as ProjectWithPayments[]).map((p: ProjectWithPayments) => {
+    // Map projects to include calculated fields (like total payments received and last payment date)
+    const formattedProjects = (projects as unknown as any[]).map((p: any) => {
       const receivedAmount = p.payments.reduce((sum: number, pay: { amount: any }) => sum + Number(pay.amount), 0);
       const pendingCollection = Number(p.quotedAmount) - receivedAmount;
+
+      let lastPaymentDate: string | null = null;
+      if (p.payments.length > 0) {
+        const dates = p.payments.map((pay: any) => new Date(pay.paymentDate).getTime());
+        const maxTime = Math.max(...dates);
+        lastPaymentDate = new Date(maxTime).toISOString();
+      }
+
       return {
         ...p,
         receivedAmount,
         pendingCollection,
+        lastPaymentDate,
       };
     });
 

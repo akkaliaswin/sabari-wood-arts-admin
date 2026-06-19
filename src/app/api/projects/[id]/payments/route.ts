@@ -14,7 +14,7 @@ export async function POST(
       return NextResponse.json({ error: 'Payment Date, Amount, and Payment Mode are required' }, { status: 400 });
     }
 
-    const validModes = ['Cash', 'Bank Transfer', 'UPI', 'Cheque'];
+    const validModes = ['Cash', 'Bank Transfer', 'UPI', 'Cheque', 'Other'];
     if (!validModes.includes(paymentMode)) {
       return NextResponse.json({ error: `Payment Mode must be one of: ${validModes.join(', ')}` }, { status: 400 });
     }
@@ -66,21 +66,46 @@ export async function PUT(
     }
 
     if (paymentMode) {
-      const validModes = ['Cash', 'Bank Transfer', 'UPI', 'Cheque'];
+      const validModes = ['Cash', 'Bank Transfer', 'UPI', 'Cheque', 'Other'];
       if (!validModes.includes(paymentMode)) {
         return NextResponse.json({ error: `Payment Mode must be one of: ${validModes.join(', ')}` }, { status: 400 });
       }
     }
 
-    const updatedPayment = await prisma.payment.update({
-      where: { id: itemId, projectId },
-      data: {
-        paymentDate: paymentDate ? new Date(paymentDate) : undefined,
-        amount: amount !== undefined ? Number(amount) : undefined,
-        paymentMode,
-        referenceNumber,
-        remarks,
-      },
+    const updatedPayment = await prisma.$transaction(async (tx: {
+      payment: {
+        findUnique: (args: any) => Promise<any>;
+        update: (args: any) => Promise<any>;
+      };
+      projectActivity: { create: (args: any) => Promise<any> };
+    }) => {
+      const oldPayment = await tx.payment.findUnique({
+        where: { id: itemId, projectId },
+      });
+
+      const pay = await tx.payment.update({
+        where: { id: itemId, projectId },
+        data: {
+          paymentDate: paymentDate ? new Date(paymentDate) : undefined,
+          amount: amount !== undefined ? Number(amount) : undefined,
+          paymentMode,
+          referenceNumber,
+          remarks,
+        },
+      });
+
+      const oldAmtStr = oldPayment ? `₹${Number(oldPayment.amount).toLocaleString('en-IN')}` : 'N/A';
+      const newAmtStr = `₹${Number(pay.amount).toLocaleString('en-IN')}`;
+
+      await tx.projectActivity.create({
+        data: {
+          projectId,
+          activityType: 'PAYMENT_UPDATED',
+          description: `Payment updated: ${pay.paymentCode} changed from ${oldAmtStr} (${oldPayment?.paymentMode || 'N/A'}) to ${newAmtStr} (${pay.paymentMode})`,
+        },
+      });
+
+      return pay;
     });
 
     return NextResponse.json(updatedPayment);

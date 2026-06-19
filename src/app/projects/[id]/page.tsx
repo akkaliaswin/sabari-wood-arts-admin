@@ -700,51 +700,55 @@ export default function ProjectDetailPage({
         </div>
       </div>
 
-      {/* Project Summary Cards */}
-      <div className="stat-grid" style={{ marginBottom: '24px' }}>
-        <div className="stat-card" style={{ borderLeft: '4px solid var(--primary)' }}>
-          <div className="stat-label">Total Revenue</div>
-          <div className="stat-value">{formatCurrency(project.totalRevenue)}</div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-            Quoted: {formatCurrency(project.quotedAmount)}
+      {/* Project Financial Summary Section */}
+      <div className="card" style={{ borderLeft: '4px solid var(--primary)', marginBottom: '24px' }}>
+        <h3 style={{ marginBottom: '14px', fontSize: '1.05rem' }}>Financial Summary</h3>
+        <div className="stat-grid" style={{ border: 'none', padding: 0, boxShadow: 'none', margin: 0, gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))' }}>
+          <div className="stat-card" style={{ padding: '12px' }}>
+            <div className="stat-label">Quoted Amount</div>
+            <div className="stat-value">{formatCurrency(project.quotedAmount)}</div>
           </div>
-        </div>
-
-        <div className="stat-card" style={{ borderLeft: '4px solid var(--success)' }}>
-          <div className="stat-label">Payments Received</div>
-          <div className="stat-value" style={{ color: 'var(--success)' }}>
-            {formatCurrency(project.receivedAmount)}
+          <div className="stat-card" style={{ padding: '12px', borderLeft: '3px solid var(--danger)' }}>
+            <div className="stat-label">Material Cost</div>
+            <div className="stat-value" style={{ color: 'var(--danger)' }}>
+              {formatCurrency(project.materialCost)}
+            </div>
           </div>
-        </div>
-
-        <div className="stat-card" style={{ borderLeft: '4px solid var(--warning)' }}>
-          <div className="stat-label">Pending Collection</div>
-          <div className="stat-value" style={{ color: project.pendingCollection > 0 ? 'var(--warning)' : 'var(--success)' }}>
-            {formatCurrency(project.pendingCollection)}
+          <div className="stat-card" style={{ padding: '12px', borderLeft: '3px solid var(--danger)' }}>
+            <div className="stat-label">Labour Cost</div>
+            <div className="stat-value" style={{ color: 'var(--danger)' }}>
+              {formatCurrency(project.labourCost)}
+            </div>
           </div>
-        </div>
-
-        <div className="stat-card" style={{ borderLeft: '4px solid var(--danger)' }}>
-          <div className="stat-label">Material Cost</div>
-          <div className="stat-value" style={{ color: 'var(--danger)' }}>
-            {formatCurrency(project.materialCost)}
+          <div className="stat-card" style={{ padding: '12px', borderLeft: '3px solid var(--success)' }}>
+            <div className="stat-label">Total Payments Received</div>
+            <div className="stat-value" style={{ color: 'var(--success)' }}>
+              {formatCurrency(project.receivedAmount)}
+            </div>
           </div>
-        </div>
-
-        <div className="stat-card" style={{ borderLeft: '4px solid var(--danger)' }}>
-          <div className="stat-label">Labour Cost</div>
-          <div className="stat-value" style={{ color: 'var(--danger)' }}>
-            {formatCurrency(project.labourCost)}
+          <div className="stat-card" style={{ padding: '12px', borderLeft: '3px solid var(--warning)' }}>
+            <div className="stat-label">Outstanding Amount</div>
+            <div className="stat-value" style={{ color: (Number(project.quotedAmount) - project.receivedAmount) > 0 ? 'var(--warning)' : 'var(--success)' }}>
+              {formatCurrency(Number(project.quotedAmount) - project.receivedAmount)}
+            </div>
           </div>
-        </div>
-
-        <div className="stat-card" style={{ borderLeft: '4px solid var(--info)', background: 'var(--primary-light)' }}>
-          <div className="stat-label" style={{ color: 'var(--primary)', fontWeight: 'bold' }}>Estimated Profit</div>
-          <div className="stat-value" style={{ color: project.profit >= 0 ? 'var(--success)' : 'var(--danger)' }}>
-            {formatCurrency(project.profit)}
-          </div>
-          <div style={{ fontSize: '0.75rem', fontWeight: 'bold', color: project.profit >= 0 ? 'var(--success)' : 'var(--danger)', marginTop: '2px' }}>
-            Margin: {project.marginPercentage.toFixed(1)}%
+          {/* Estimated Profit = Quoted Amount - Material Cost - Labour Cost */}
+          <div className="stat-card" style={{ padding: '12px', borderLeft: '3px solid var(--info)', background: 'var(--primary-light)' }}>
+            <div className="stat-label" style={{ color: 'var(--primary)', fontWeight: 'bold' }}>Estimated Profit</div>
+            {(() => {
+              const estimatedProfit = Number(project.quotedAmount) - project.materialCost - project.labourCost;
+              const margin = Number(project.quotedAmount) > 0 ? (estimatedProfit / Number(project.quotedAmount)) * 100 : 0;
+              return (
+                <>
+                  <div className="stat-value" style={{ color: estimatedProfit >= 0 ? 'var(--success)' : 'var(--danger)' }}>
+                    {formatCurrency(estimatedProfit)}
+                  </div>
+                  <div style={{ fontSize: '0.75rem', fontWeight: 'bold', color: estimatedProfit >= 0 ? 'var(--success)' : 'var(--danger)', marginTop: '2px' }}>
+                    Margin: {margin.toFixed(1)}%
+                  </div>
+                </>
+              );
+            })()}
           </div>
         </div>
       </div>
@@ -947,6 +951,8 @@ export default function ProjectDetailPage({
                     else if (act.activityType === 'MATERIAL_ADDED') { badgeColor = 'var(--danger)'; badgeText = 'Material Logged'; }
                     else if (act.activityType === 'LABOUR_ADDED') { badgeColor = 'var(--danger)'; badgeText = 'Labour Wage'; }
                     else if (act.activityType === 'PAYMENT_RECEIVED') { badgeColor = 'var(--success)'; badgeText = 'Payment Received'; }
+                    else if (act.activityType === 'PAYMENT_UPDATED') { badgeColor = 'var(--warning)'; badgeText = 'Payment Updated'; }
+                    else if (act.activityType === 'PAYMENT_DELETED') { badgeColor = 'var(--danger)'; badgeText = 'Payment Deleted'; }
 
                     return (
                       <div key={act.id} style={{

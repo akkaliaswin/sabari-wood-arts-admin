@@ -25,6 +25,13 @@ interface ClientDetail {
   remarks: string | null;
   totalBusinessValue: number;
   projects: Project[];
+  financialSummary?: {
+    totalProjectValue: number;
+    totalAmountReceived: number;
+    outstandingAmount: number;
+    numberOfProjects: number;
+    lastPaymentDate: string | null;
+  };
 }
 
 export default function ClientDetailPage({
@@ -333,12 +340,43 @@ export default function ClientDetailPage({
             </div>
           </div>
 
-          {/* Business Value Highlight Card */}
-          <div className="card" style={{ background: 'var(--primary-light)', borderColor: 'var(--primary)' }}>
-            <div className="stat-label" style={{ color: 'var(--primary)', fontWeight: 'bold' }}>Lifetime Business Value</div>
-            <div className="stat-value" style={{ fontSize: '1.75rem', marginTop: '4px' }}>
-              {formatCurrency(client.totalBusinessValue)}
+          {/* Financial Summary Section */}
+          <div className="card" style={{ borderLeft: '4px solid var(--primary)' }}>
+            <h3 style={{ marginBottom: '16px', borderBottom: '1px solid var(--border)', paddingBottom: '8px' }}>Financial Summary</h3>
+            <div className="stat-grid" style={{ border: 'none', padding: 0, boxShadow: 'none', margin: 0, gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))' }}>
+              <div className="stat-card" style={{ padding: '12px' }}>
+                <div className="stat-label">Total Project Value</div>
+                <div className="stat-value">{formatCurrency(client.financialSummary?.totalProjectValue ?? client.totalBusinessValue ?? 0)}</div>
+              </div>
+              <div className="stat-card" style={{ padding: '12px', borderLeft: '3px solid var(--success)' }}>
+                <div className="stat-label">Total Received</div>
+                <div className="stat-value" style={{ color: 'var(--success)' }}>
+                  {formatCurrency(client.financialSummary?.totalAmountReceived ?? 0)}
+                </div>
+              </div>
+              <div className="stat-card" style={{ padding: '12px', borderLeft: '3px solid var(--warning)' }}>
+                <div className="stat-label">Outstanding Amount</div>
+                <div className="stat-value" style={{ color: 'var(--warning)' }}>
+                  {formatCurrency(client.financialSummary?.outstandingAmount ?? 0)}
+                </div>
+              </div>
+              <div className="stat-card" style={{ padding: '12px' }}>
+                <div className="stat-label">Number of Projects</div>
+                <div className="stat-value">{client.financialSummary?.numberOfProjects ?? client.projects.length ?? 0}</div>
+              </div>
             </div>
+            {client.financialSummary?.lastPaymentDate && (
+              <div style={{ marginTop: '12px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                ℹ️ Last payment received on:{' '}
+                <strong>
+                  {new Date(client.financialSummary.lastPaymentDate).toLocaleDateString('en-IN', {
+                    day: 'numeric',
+                    month: 'short',
+                    year: 'numeric',
+                  })}
+                </strong>
+              </div>
+            )}
           </div>
 
           {/* Associated Projects Listing */}
