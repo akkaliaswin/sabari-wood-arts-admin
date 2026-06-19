@@ -20,7 +20,7 @@ export async function GET() {
     });
 
     const activeStatuses = ['Lead', 'Measurement Done', 'Quotation Sent', 'Advance Received', 'Production', 'Installation', 'On Hold'];
-    const activeProjects = allProjects.filter((p) => activeStatuses.includes(p.status));
+    const activeProjects = allProjects.filter((p: any) => activeStatuses.includes(p.status));
 
     // Computations
     const totalActiveProjects = activeProjects.length;
@@ -84,11 +84,11 @@ export async function GET() {
         const itemLabour = p.labourCosts
           .filter((l) => l.workItemId === item.id)
           .reduce((sum, l) => sum + Number(l.amount), 0);
-        
+
         const type = item.workType;
         const sellPrice = Number(item.sellingPrice);
         const profit = sellPrice - itemMaterials - itemLabour;
-        
+
         if (!workTypeStats[type]) {
           workTypeStats[type] = { revenue: 0, cost: 0, profit: 0 };
         }
@@ -118,7 +118,7 @@ export async function GET() {
       const pMaterials = p.materialPurchases.reduce((sum, m) => sum + Number(m.amount), 0);
       const pLabour = p.labourCosts.reduce((sum, l) => sum + Number(l.amount), 0);
       const pProfit = pRevenue - pMaterials - pLabour;
-      
+
       if (pProfit > maxProjectProfit) {
         maxProjectProfit = pProfit;
         mostProfitableProject = `${p.projectName} (${p.projectCode})`;
@@ -150,13 +150,13 @@ export async function GET() {
     // Labour master metrics
     const totalLabourers = await prisma.labourer.count();
     const activeLabourers = await prisma.labourer.count({ where: { activeStatus: true } });
-    
+
     // Monthly labour costs
     const now = new Date();
     const currentYear = now.getFullYear();
     const currentMonth = now.getMonth();
     const startOfThisMonth = new Date(currentYear, currentMonth, 1);
-    
+
     // Retrieve all labour cost logs
     const allLabourCosts = await prisma.labourCost.findMany();
     const globalTotalLabourCost = allLabourCosts.reduce((sum, cost) => sum + Number(cost.amount), 0);
