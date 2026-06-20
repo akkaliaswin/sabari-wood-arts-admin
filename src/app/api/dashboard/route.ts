@@ -29,9 +29,18 @@ export async function GET() {
     // Active project quoted value
     const totalProjectValue = activeProjects.reduce((sum: number, p: ProjectWithRelations) => sum + Number(p.quotedAmount), 0);
 
-    // Payments received (all-time / global)
-    const totalCollectionsReceived = allProjects.reduce(
+    // Global payments received (all-time / global)
+    const globalCollectionsReceived = allProjects.reduce(
       (sum: number, p: ProjectWithRelations) => sum + p.payments.reduce((s: number, pay: Payment) => s + Number(pay.amount), 0),
+      0
+    );
+
+    // Payments received (active projects only / status is NOT Completed)
+    const totalCollectionsReceived = allProjects.reduce(
+      (sum: number, p: ProjectWithRelations) => {
+        if (p.status === 'Completed') return sum;
+        return sum + p.payments.reduce((s: number, pay: Payment) => s + Number(pay.amount), 0);
+      },
       0
     );
 
@@ -183,7 +192,7 @@ export async function GET() {
       highestPaidLabourer = 'None';
     }
 
-    const netCashPosition = totalCollectionsReceived - totalMaterialCost - globalTotalLabourCost;
+    const netCashPosition = globalCollectionsReceived - totalMaterialCost - globalTotalLabourCost;
 
     return NextResponse.json({
       totalActiveProjects,
