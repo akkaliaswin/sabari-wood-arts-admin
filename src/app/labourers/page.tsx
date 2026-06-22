@@ -33,6 +33,22 @@ export default function LabourersPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchField, setSearchField] = useState('name'); // 'name' or 'phone'
   const [skillFilter, setSkillFilter] = useState('');
+  const [showAllMetrics, setShowAllMetrics] = useState(false);
+  const [showMobileFilters, setShowMobileFilters] = useState(false);
+  const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({});
+  const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const handleOutsideClick = () => {
+      setActiveMenuId(null);
+    };
+    window.addEventListener('click', handleOutsideClick);
+    return () => window.removeEventListener('click', handleOutsideClick);
+  }, []);
+
+  const toggleCard = (id: string) => {
+    setExpandedCards((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
 
   // Register form states
   const [showDrawer, setShowDrawer] = useState(false);
@@ -46,10 +62,6 @@ export default function LabourersPage() {
   const [submitting, setSubmitting] = useState(false);
 
   const skills = ['Carpenter', 'Polisher', 'Painter', 'Helper', 'Installer'];
-
-  useEffect(() => {
-    fetchData();
-  }, []);
 
   const fetchData = async () => {
     try {
@@ -68,12 +80,20 @@ export default function LabourersPage() {
         const dashData = await dashRes.json();
         setMetrics(dashData.labourMetrics);
       }
-    } catch (err: any) {
-      setError(err.message || 'An error occurred loading labourers');
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'An error occurred loading labourers';
+      setError(errorMsg);
     } finally {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fetchData();
+    }, 0);
+    return () => clearTimeout(timer);
+  }, []);
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -118,8 +138,9 @@ export default function LabourersPage() {
       // Refresh data
       fetchData();
       alert('Labourer registered successfully!');
-    } catch (err: any) {
-      alert(err.message || 'An error occurred');
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'An error occurred';
+      alert(errorMsg);
     } finally {
       setSubmitting(false);
     }
@@ -153,83 +174,111 @@ export default function LabourersPage() {
     <div>
       <div className="page-title-section">
         <h1 className="page-title">Labour Management</h1>
-        <button onClick={() => setShowDrawer(true)} className="btn btn-primary">
-          ➕ Register Labourer
-        </button>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          <Link href="/labourers/attendance" className="btn btn-secondary btn-sm">
+            📅 Attendance Tracker
+          </Link>
+          <button onClick={() => setShowDrawer(true)} className="btn btn-primary btn-sm">
+            ➕ Register Labourer
+          </button>
+        </div>
       </div>
 
       {/* Labour Widgets */}
       {metrics && (
-        <div className="stat-grid" style={{ marginBottom: '24px' }}>
-          <div className="stat-card">
-            <div className="stat-label">Total Labourers</div>
-            <div className="stat-value">{metrics.totalLabourers}</div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-              Active: {metrics.activeLabourers}
+        <>
+          <div className="stat-grid stat-grid-scrollable" style={{ marginBottom: '16px' }}>
+            <div className="stat-card">
+              <div className="stat-label">Total Labourers</div>
+              <div className="stat-value">{metrics.totalLabourers}</div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                Active: {metrics.activeLabourers}
+              </div>
             </div>
-          </div>
 
-          <div className="stat-card" style={{ borderLeft: '4px solid var(--danger)' }}>
-            <div className="stat-label">Total Wages Paid</div>
-            <div className="stat-value" style={{ color: 'var(--danger)' }}>
-              {formatCurrency(metrics.totalLabourCost)}
+            <div className="stat-card" style={{ borderLeft: '4px solid var(--danger)' }}>
+              <div className="stat-label">Total Wages Paid</div>
+              <div className="stat-value" style={{ color: 'var(--danger)' }}>
+                {formatCurrency(metrics.totalLabourCost)}
+              </div>
             </div>
-          </div>
 
-          <div className="stat-card" style={{ borderLeft: '4px solid var(--warning)' }}>
-            <div className="stat-label">Paid This Month</div>
-            <div className="stat-value" style={{ color: 'var(--warning)' }}>
-              {formatCurrency(metrics.labourCostThisMonth)}
+            <div className={`stat-card secondary-metric ${showAllMetrics ? 'show-mobile' : ''}`} style={{ borderLeft: '4px solid var(--warning)' }}>
+              <div className="stat-label">Paid This Month</div>
+              <div className="stat-value" style={{ color: 'var(--warning)' }}>
+                {formatCurrency(metrics.labourCostThisMonth)}
+              </div>
             </div>
-          </div>
 
-          <div className="stat-card" style={{ borderLeft: '4px solid var(--info)' }}>
-            <div className="stat-label">Highest Paid Labourer</div>
-            <div className="stat-value" style={{ fontSize: '1.05rem', color: 'var(--primary)', fontWeight: 'bold', minHeight: '38px', display: 'flex', alignItems: 'center' }}>
-              👤 {metrics.highestPaidLabourer}
+            <div className={`stat-card secondary-metric ${showAllMetrics ? 'show-mobile' : ''}`} style={{ borderLeft: '4px solid var(--info)' }}>
+              <div className="stat-label">Highest Paid Labourer</div>
+              <div className="stat-value" style={{ fontSize: '1.05rem', color: 'var(--primary)', fontWeight: 'bold', minHeight: '38px', display: 'flex', alignItems: 'center' }}>
+                👤 {metrics.highestPaidLabourer}
+              </div>
             </div>
           </div>
-        </div>
+          
+          <div className="toggle-metrics-container">
+            <button 
+              onClick={() => setShowAllMetrics(!showAllMetrics)} 
+              className="btn btn-secondary btn-sm" 
+              style={{ minHeight: '32px', height: '32px', fontSize: '0.8rem', padding: '4px 8px', marginBottom: '16px' }}
+            >
+              {showAllMetrics ? 'Show Less Metrics ▲' : 'Show All Metrics ▼'}
+            </button>
+          </div>
+        </>
       )}
 
       {/* Filter and Search Bar */}
       <div className="card" style={{ background: '#faf9f6', padding: '16px', marginBottom: '20px' }}>
-        <div className="form-row" style={{ marginBottom: 0, alignItems: 'center' }}>
-          <div className="form-group" style={{ width: '160px', marginBottom: 0 }}>
-            <label className="form-label" style={{ fontWeight: '500' }}>Search Field</label>
-            <select
-              className="form-control"
-              value={searchField}
-              onChange={(e) => { setSearchField(e.target.value); setSearchQuery(''); }}
-            >
-              <option value="name">Labour Name</option>
-              <option value="phone">Phone Number</option>
-            </select>
-          </div>
-          <div className="form-group" style={{ flex: 2, marginBottom: 0 }}>
-            <label className="form-label" style={{ fontWeight: '500' }}>Search Labourers</label>
+        <div className="filter-bar-layout">
+          <div className="search-box-wrapper">
             <input
               type="text"
-              placeholder={searchField === 'name' ? "Enter name..." : "Enter 10-digit phone..."}
+              placeholder={searchField === 'name' ? "Search by name..." : "Search by 10-digit phone..."}
               className="form-control"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
+              style={{ width: '100%' }}
             />
           </div>
-          <div className="form-group">
-            <label className="form-label" style={{ fontWeight: '500' }}>Skill Filter</label>
-            <select
-              className="form-control"
-              value={skillFilter}
-              onChange={(e) => setSkillFilter(e.target.value)}
-            >
-              <option value="">-- All Skills --</option>
-              {skills.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
+          
+          <button 
+            onClick={() => setShowMobileFilters(!showMobileFilters)} 
+            className="btn btn-secondary btn-sm toggle-filters-btn"
+          >
+            ⚙️ {showMobileFilters ? 'Hide Filters' : 'Filters'}
+          </button>
+
+          <div className={`mobile-filters ${showMobileFilters ? 'open' : ''}`}>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label" style={{ fontWeight: '500' }}>Search Field</label>
+              <select
+                className="form-control"
+                value={searchField}
+                onChange={(e) => { setSearchField(e.target.value); setSearchQuery(''); }}
+              >
+                <option value="name">Labour Name</option>
+                <option value="phone">Phone Number</option>
+              </select>
+            </div>
+            
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label" style={{ fontWeight: '500' }}>Skill Filter</label>
+              <select
+                className="form-control"
+                value={skillFilter}
+                onChange={(e) => setSkillFilter(e.target.value)}
+              >
+                <option value="">-- All Skills --</option>
+                {skills.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
       </div>
@@ -286,23 +335,63 @@ export default function LabourersPage() {
 
           {/* Mobile Card View */}
           <div className="mobile-list-container">
-            {filteredLabourers.map((lab) => (
-              <div key={lab.id} className="mobile-list-card" style={{ borderLeft: `4px solid ${lab.activeStatus ? 'var(--success)' : 'var(--danger)'}` }}>
-                <div className="mobile-list-header">
-                  <div>
-                    <div className="mobile-list-title">{lab.name}</div>
-                    <div className="mobile-list-subtitle">{lab.labourCode} • {lab.skillType}</div>
+            {filteredLabourers.map((lab) => {
+              const isExpanded = expandedCards[lab.id] || false;
+              const isMenuOpen = activeMenuId === lab.id;
+              return (
+                <div key={lab.id} className="mobile-list-card" style={{ borderLeft: `4px solid ${lab.activeStatus ? 'var(--success)' : 'var(--danger)'}`, position: 'relative' }}>
+                  <div className="mobile-list-header">
+                    <div>
+                      <div className="mobile-list-title" style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold' }}>
+                        {lab.name}
+                        <span className={`badge badge-${lab.activeStatus ? 'completed' : 'cancelled'}`} style={{ fontSize: '0.65rem', padding: '2px 6px' }}>
+                          {lab.activeStatus ? 'Active' : 'Inactive'}
+                        </span>
+                      </div>
+                      <div className="mobile-list-subtitle" style={{ marginTop: '2px' }}>
+                        {lab.labourCode} • <span className="badge badge-pending" style={{ fontSize: '0.65rem', padding: '2px 6px', display: 'inline-flex', verticalAlign: 'middle' }}>{lab.skillType}</span>
+                      </div>
+                    </div>
+                    
+                    <div className="mobile-menu-container">
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); setActiveMenuId(isMenuOpen ? null : lab.id); }} 
+                        className="ellipsis-btn"
+                        style={{ background: 'none', border: 'none', fontSize: '1.25rem', padding: '4px 8px', cursor: 'pointer', color: 'var(--text-muted)' }}
+                      >
+                        ⋮
+                      </button>
+                      {isMenuOpen && (
+                        <div className="mobile-dropdown-menu">
+                          <Link href={`/labourers/${lab.id}`} className="dropdown-item">
+                            🪚 Profile Details
+                          </Link>
+                          <Link href={`/labourers/attendance?labourerId=${lab.id}`} className="dropdown-item">
+                            📅 Attendance
+                          </Link>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <Link href={`/labourers/${lab.id}`} className="btn btn-secondary btn-sm">
-                    🪚 Profile
-                  </Link>
+                  
+                  <div style={{ marginTop: '8px', fontSize: '0.85rem' }}>
+                    <strong>Phone:</strong> <a href={`tel:${lab.phone}`} style={{ color: 'var(--primary)', textDecoration: 'none', fontWeight: '500' }}>{lab.phone}</a>
+                  </div>
+                  
+                  <button onClick={() => toggleCard(lab.id)} className="view-details-btn">
+                    {isExpanded ? '▲ Hide Details' : '▼ View Details'}
+                  </button>
+                  
+                  {isExpanded && (
+                    <div className="mobile-details-expanded">
+                      <div><strong>Joined:</strong> {new Date(lab.joiningDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</div>
+                      <div><strong>Address:</strong> {lab.address || '—'}</div>
+                      <div><strong>Notes:</strong> {lab.notes || '—'}</div>
+                    </div>
+                  )}
                 </div>
-                <div style={{ marginTop: '8px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                  Phone: {lab.phone} <br />
-                  Joined: {new Date(lab.joiningDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </>
       )}
@@ -431,10 +520,131 @@ export default function LabourersPage() {
         @media (min-width: 768px) {
           .table-container { display: block !important; }
           .mobile-list-container { display: none !important; }
+          .filter-bar-layout {
+            display: flex;
+            gap: 16px;
+            align-items: center;
+          }
+          .search-box-wrapper {
+            flex: 2;
+          }
+          .mobile-filters {
+            display: flex !important;
+            gap: 16px;
+            align-items: center;
+            flex: 2;
+          }
+          .mobile-filters .form-group {
+            flex: 1;
+            margin-bottom: 0 !important;
+          }
+          .toggle-filters-btn {
+            display: none !important;
+          }
         }
         @media (max-width: 767px) {
           .table-container { display: none !important; }
           .mobile-list-container { display: block !important; }
+          .filter-bar-layout {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+          }
+          .toggle-filters-btn {
+            display: inline-flex !important;
+            justify-content: center;
+            width: 100%;
+          }
+          .mobile-filters {
+            display: none;
+            flex-direction: column;
+            gap: 12px;
+            margin-top: 8px;
+          }
+          .mobile-filters.open {
+            display: flex !important;
+          }
+          .mobile-filters .form-group {
+            width: 100% !important;
+            margin-bottom: 8px !important;
+          }
+          
+          /* scrollable widgets */
+          .stat-grid-scrollable {
+            display: flex !important;
+            overflow-x: auto;
+            gap: 12px;
+            padding-bottom: 8px;
+            scroll-snap-type: x mandatory;
+            -webkit-overflow-scrolling: touch;
+          }
+          .stat-grid-scrollable .stat-card {
+            flex: 0 0 200px;
+            scroll-snap-align: start;
+            padding: 10px 12px;
+            margin-bottom: 0;
+            height: auto;
+          }
+          .secondary-metric {
+            display: none !important;
+          }
+          .secondary-metric.show-mobile {
+            display: block !important;
+          }
+          .toggle-metrics-container {
+            display: flex;
+            justify-content: flex-end;
+          }
+          
+          /* ellipsis dropdown */
+          .mobile-menu-container {
+            position: relative;
+          }
+          .mobile-dropdown-menu {
+            position: absolute;
+            right: 0;
+            top: 32px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow-md);
+            z-index: 100;
+            min-width: 140px;
+          }
+          .dropdown-item {
+            display: block;
+            padding: 10px 12px;
+            font-size: 0.85rem;
+            color: var(--text-primary);
+            border-bottom: 1px solid var(--border);
+            text-decoration: none !important;
+          }
+          .dropdown-item:last-child {
+            border-bottom: none;
+          }
+          .dropdown-item:hover {
+            background-color: var(--primary-light);
+            color: var(--primary);
+          }
+          .view-details-btn {
+            background: none;
+            border: none;
+            color: var(--primary);
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            padding: 6px 0 0 0;
+            margin-top: 4px;
+            display: block;
+          }
+          .mobile-details-expanded {
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px dashed var(--border);
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            line-height: 1.4;
+          }
         }
       `}</style>
     </div>

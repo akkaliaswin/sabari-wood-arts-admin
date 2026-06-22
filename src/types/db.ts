@@ -158,3 +158,31 @@ export interface ProjectReportPayload extends Project {
   materialPurchases: MaterialPurchase[];
   labourCosts: LabourCost[];
 }
+
+export interface ProjectLabourAssignment {
+  id: string;
+  projectId: string;
+  labourerId: string;
+  role: string;
+  assignedDate: Date | string;
+  unassignedDate: Date | string | null;
+  isActive: boolean;
+  remarks: string | null;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+  project?: Project;
+  labourer?: Labourer;
+}
+
+export interface LabourAttendance {
+  id: string;
+  labourerId: string;
+  projectId: string | null;
+  attendanceDate: Date | string;
+  status: string;
+  remarks: string | null;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+  labourer?: Labourer;
+  project?: Project;
+}

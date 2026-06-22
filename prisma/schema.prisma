@@ -49,6 +49,8 @@ model Project {
   labourCosts             LabourCost[]
   statusHistory           ProjectStatusHistory[]
   activities              ProjectActivity[]
+  labourAssignments       ProjectLabourAssignment[]
+  attendances             LabourAttendance[]
 
   @@map("projects")
 }
@@ -151,6 +153,8 @@ model Labourer {
   updatedAt     DateTime @updatedAt @map("updated_at")
 
   labourCosts   LabourCost[]
+  attendances   LabourAttendance[]
+  labourAssignments ProjectLabourAssignment[]
 
   @@map("labourers")
 }
@@ -189,5 +193,40 @@ model ProjectActivity {
   project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@map("project_activities")
+}
+
+model LabourAttendance {
+  id              String   @id @default(uuid()) @db.Uuid
+  labourerId      String   @db.Uuid @map("labourer_id")
+  projectId       String?  @db.Uuid @map("project_id")
+  attendanceDate  DateTime @db.Date @map("attendance_date")
+  status          String   // Present, Absent, Half Day, Leave
+  remarks         String?
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  labourer        Labourer @relation(fields: [labourerId], references: [id], onDelete: Cascade)
+  project         Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@unique([labourerId, attendanceDate])
+  @@map("labour_attendances")
+}
+
+model ProjectLabourAssignment {
+  id              String    @id @default(uuid()) @db.Uuid
+  projectId       String    @db.Uuid @map("project_id")
+  labourerId      String    @db.Uuid @map("labourer_id")
+  role            String    
+  assignedDate    DateTime  @default(now()) @db.Date @map("assigned_date")
+  unassignedDate  DateTime? @db.Date @map("unassigned_date")
+  isActive        Boolean   @default(true) @map("is_active")
+  remarks         String?
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  project         Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  labourer        Labourer  @relation(fields: [labourerId], references: [id], onDelete: Cascade)
+
+  @@map("project_labour_assignments")
 }
 

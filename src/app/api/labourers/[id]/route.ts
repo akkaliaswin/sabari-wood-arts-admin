@@ -31,6 +31,30 @@ export async function GET(
           },
           orderBy: { paymentDate: 'desc' },
         },
+        attendances: {
+          include: {
+            project: {
+              select: {
+                id: true,
+                projectName: true,
+                projectCode: true,
+              },
+            },
+          },
+          orderBy: { attendanceDate: 'desc' },
+        },
+        labourAssignments: {
+          include: {
+            project: {
+              select: {
+                id: true,
+                projectName: true,
+                projectCode: true,
+              },
+            },
+          },
+          orderBy: { assignedDate: 'desc' },
+        },
       },
     });
 
@@ -45,10 +69,22 @@ export async function GET(
     const uniqueProjectIds = new Set(labourer.labourCosts.map((cost: LabourCost) => cost.projectId));
     const projectsCount = uniqueProjectIds.size;
 
+    // Attendance stats
+    const totalWorkingDays = labourer.attendances.length;
+    const presentDays = labourer.attendances.filter((a) => a.status === 'Present').length;
+    const absentDays = labourer.attendances.filter((a) => a.status === 'Absent').length;
+    const halfDays = labourer.attendances.filter((a) => a.status === 'Half Day').length;
+    const attendancePercentage = totalWorkingDays > 0 ? ((presentDays + 0.5 * halfDays) / totalWorkingDays) * 100 : 0;
+
     return NextResponse.json({
       ...labourer,
       totalPaid,
       projectsCount,
+      totalWorkingDays,
+      presentDays,
+      absentDays,
+      halfDays,
+      attendancePercentage,
     });
   } catch (error) {
     console.error('Error fetching labourer details:', error);
