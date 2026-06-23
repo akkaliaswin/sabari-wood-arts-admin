@@ -649,7 +649,6 @@ export default function AttendancePage() {
                         <option value="Present">Present</option>
                         <option value="Absent">Absent</option>
                         <option value="Half Day">Half Day</option>
-                        <option value="Leave">Leave</option>
                       </select>
                       
                       <select
@@ -733,13 +732,12 @@ export default function AttendancePage() {
                                 </td>
                                 <td>
                                   <div style={{ display: 'flex', gap: '4px' }}>
-                                    {['Present', 'Absent', 'Half Day', 'Leave'].map((statusOption) => {
+                                    {['Present', 'Absent', 'Half Day'].map((statusOption) => {
                                       let activeClass = '';
                                       if (current.status === statusOption) {
                                         if (statusOption === 'Present') activeClass = 'active-present';
                                         if (statusOption === 'Absent') activeClass = 'active-absent';
                                         if (statusOption === 'Half Day') activeClass = 'active-half';
-                                        if (statusOption === 'Leave') activeClass = 'active-leave';
                                       }
                                       return (
                                         <button
@@ -820,13 +818,12 @@ export default function AttendancePage() {
                             <div className="form-group" style={{ marginBottom: '10px' }}>
                               <label className="form-label" style={{ fontSize: '0.75rem', marginBottom: '4px' }}>Attendance Status</label>
                               <div style={{ display: 'flex', gap: '4px' }}>
-                                {['Present', 'Absent', 'Half Day', 'Leave'].map((statusOption) => {
+                                {['Present', 'Absent', 'Half Day'].map((statusOption) => {
                                   let activeClass = '';
                                   if (current.status === statusOption) {
                                     if (statusOption === 'Present') activeClass = 'active-present';
                                     if (statusOption === 'Absent') activeClass = 'active-absent';
                                     if (statusOption === 'Half Day') activeClass = 'active-half';
-                                    if (statusOption === 'Leave') activeClass = 'active-leave';
                                   }
                                   return (
                                     <button

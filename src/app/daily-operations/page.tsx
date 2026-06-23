@@ -63,6 +63,15 @@ interface WorkforceToday {
   attendancePercentage: number;
 }
 
+function getISTDateString() {
+  const options = { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' } as const;
+  const parts = new Intl.DateTimeFormat('en-US', options).formatToParts(new Date());
+  const year = parts.find(p => p.type === 'year')?.value;
+  const month = parts.find(p => p.type === 'month')?.value;
+  const day = parts.find(p => p.type === 'day')?.value;
+  return `${year}-${month}-${day}`;
+}
+
 export default function DailyOperations() {
   // Data states
   const [activeProjects, setActiveProjects] = useState<ProjectAllocation[]>([]);
@@ -332,7 +341,7 @@ export default function DailyOperations() {
   const handleSaveLabourerAttendance = async (labourerId: string, projectId: string | null, status: string, notes?: string) => {
     try {
       setOperationLoading(true);
-      const todayStr = new Date().toISOString().split('T')[0];
+      const todayStr = getISTDateString();
       const res = await fetch('/api/labourers/attendance', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -676,33 +685,30 @@ export default function DailyOperations() {
                                   </select>
                                 </div>
  
-                                {/* 4-State Attendance capsules on card */}
-                                <div className="attendance-capsules-grid">
-                                  <button 
-                                    onClick={() => handleSaveLabourerAttendance(worker.id, project.id, 'Present')}
-                                    className={`capsule-btn present ${todayStatus === 'Present' ? 'active' : ''}`}
-                                  >
-                                    Present
-                                  </button>
-                                  <button 
-                                    onClick={() => handleSaveLabourerAttendance(worker.id, project.id, 'Absent')}
-                                    className={`capsule-btn absent ${todayStatus === 'Absent' ? 'active' : ''}`}
-                                  >
-                                    Absent
-                                  </button>
-                                  <button 
-                                    onClick={() => handleSaveLabourerAttendance(worker.id, project.id, 'Half Day')}
-                                    className={`capsule-btn halfday ${todayStatus === 'Half Day' ? 'active' : ''}`}
-                                  >
-                                    Half Day
-                                  </button>
-                                  <button 
-                                    onClick={() => handleSaveLabourerAttendance(worker.id, project.id, 'Leave')}
-                                    className={`capsule-btn leave ${todayStatus === 'Leave' ? 'active' : ''}`}
-                                  >
-                                    Leave
-                                  </button>
-                                </div>
+                                 {/* 3-State Attendance capsules on card */}
+                                 <div className="attendance-capsules-grid">
+                                   <button 
+                                     onClick={() => handleSaveLabourerAttendance(worker.id, project.id, 'Present')}
+                                     className={`capsule-btn present ${todayStatus === 'Present' ? 'active' : ''}`}
+                                   >
+                                     <span className="capsule-long">Present</span>
+                                     <span className="capsule-short">P</span>
+                                   </button>
+                                   <button 
+                                     onClick={() => handleSaveLabourerAttendance(worker.id, project.id, 'Absent')}
+                                     className={`capsule-btn absent ${todayStatus === 'Absent' ? 'active' : ''}`}
+                                   >
+                                     <span className="capsule-long">Absent</span>
+                                     <span className="capsule-short">A</span>
+                                   </button>
+                                   <button 
+                                     onClick={() => handleSaveLabourerAttendance(worker.id, project.id, 'Half Day')}
+                                     className={`capsule-btn halfday ${todayStatus === 'Half Day' ? 'active' : ''}`}
+                                   >
+                                     <span className="capsule-long">Half Day</span>
+                                     <span className="capsule-short">H</span>
+                                   </button>
+                                 </div>
  
                                  {/* Optional remarks field shown after marking status */}
                                  {todayStatus !== 'Unmarked' && (
@@ -806,31 +812,28 @@ export default function DailyOperations() {
                   </div>
  
                   <div className="available-actions-row" style={{ display: 'flex', flexDirection: 'column', gap: '8px', borderTop: '1px dashed #e2e8f0', paddingTop: '10px' }}>
-                    {/* 4-State Attendance capsules on card */}
+                    {/* 3-State Attendance capsules on card */}
                     <div className="attendance-capsules-grid" style={{ width: '100%', border: 'none', margin: 0, padding: 0 }}>
                       <button 
                         onClick={() => handleSaveLabourerAttendance(lab.id, null, 'Present')}
                         className={`capsule-btn present ${todayStatus === 'Present' ? 'active' : ''}`}
                       >
-                        Present
+                        <span className="capsule-long">Present</span>
+                        <span className="capsule-short">P</span>
                       </button>
                       <button 
                         onClick={() => handleSaveLabourerAttendance(lab.id, null, 'Absent')}
                         className={`capsule-btn absent ${todayStatus === 'Absent' ? 'active' : ''}`}
                       >
-                        Absent
+                        <span className="capsule-long">Absent</span>
+                        <span className="capsule-short">A</span>
                       </button>
                       <button 
                         onClick={() => handleSaveLabourerAttendance(lab.id, null, 'Half Day')}
                         className={`capsule-btn halfday ${todayStatus === 'Half Day' ? 'active' : ''}`}
                       >
-                        Half Day
-                      </button>
-                      <button 
-                        onClick={() => handleSaveLabourerAttendance(lab.id, null, 'Leave')}
-                        className={`capsule-btn leave ${todayStatus === 'Leave' ? 'active' : ''}`}
-                      >
-                        Leave
+                        <span className="capsule-long">Half Day</span>
+                        <span className="capsule-short">H</span>
                       </button>
                     </div>
 
@@ -1331,10 +1334,10 @@ export default function DailyOperations() {
           cursor: pointer;
         }
 
-        /* 4-State Attendance Buttons */
+        /* 3-State Attendance Buttons */
         .attendance-capsules-grid {
           display: grid;
-          grid-template-columns: repeat(4, 1fr);
+          grid-template-columns: repeat(3, 1fr);
           gap: 4px;
           margin-top: 10px;
           border-top: 1px dashed #cbd5e1;
@@ -1364,6 +1367,42 @@ export default function DailyOperations() {
         .capsule-btn.absent.active { background: #ef4444; color: white; border-color: #ef4444; box-shadow: 0 1px 3px rgba(239,68,68,0.2); }
         .capsule-btn.halfday.active { background: #f59e0b; color: white; border-color: #f59e0b; box-shadow: 0 1px 3px rgba(245,158,11,0.2); }
         .capsule-btn.leave.active { background: #3b82f6; color: white; border-color: #3b82f6; box-shadow: 0 1px 3px rgba(59,130,246,0.2); }
+
+        .capsule-short {
+          display: none;
+        }
+
+        .capsule-long {
+          display: inline;
+        }
+
+        @media (max-width: 640px) {
+          .capsule-long {
+            display: none;
+          }
+          .capsule-short {
+            display: inline;
+            font-size: 0.85rem;
+            font-weight: 800;
+          }
+          .attendance-capsules-grid {
+            grid-template-columns: repeat(3, 1fr);
+            gap: 6px;
+            max-width: 170px;
+            margin-left: auto;
+            margin-right: auto;
+          }
+          .capsule-btn {
+            padding: 0;
+            border-radius: 50% !important;
+            aspect-ratio: 1 / 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 36px;
+            height: 36px;
+          }
+        }
 
         /* Notes fields */
         .worker-remarks-workspace {
