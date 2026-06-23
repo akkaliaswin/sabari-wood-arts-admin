@@ -9,6 +9,7 @@ export default function Navigation() {
 
   const navItems = [
     { name: 'Dashboard', href: '/', icon: '📊' },
+    { name: 'Operations', href: '/daily-operations', icon: '⚡' },
     { name: 'Clients', href: '/clients', icon: '👥' },
     { name: 'Projects', href: '/projects', icon: '🪵' },
     { name: 'Payments', href: '/payments', icon: '💳' },

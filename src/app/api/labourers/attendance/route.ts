@@ -436,6 +436,28 @@ export async function POST(req: NextRequest) {
       })
     );
 
+    // Log attendance activities to the timeline if a projectId is associated
+    try {
+      await Promise.all(
+        records.map(async (rec) => {
+          if (!rec.projectId) return;
+          const lab = await prisma.labourer.findUnique({
+            where: { id: rec.labourerId },
+            select: { name: true, labourCode: true },
+          });
+          await prisma.projectActivity.create({
+            data: {
+              projectId: rec.projectId,
+              activityType: 'ATTENDANCE_MARKED',
+              description: `Labourer ${lab?.name || 'Worker'} (${lab?.labourCode || 'LAB'}) marked ${rec.status} today.`,
+            },
+          });
+        })
+      );
+    } catch (activityError) {
+      console.error('Error logging attendance activities:', activityError);
+    }
+
     return NextResponse.json({ message: 'Attendance updated successfully', count: results.length });
   } catch (error) {
     console.error('Error updating attendance:', error);

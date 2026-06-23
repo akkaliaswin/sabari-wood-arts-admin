@@ -256,7 +256,27 @@ export async function GET() {
       select: { id: true, name: true, labourCode: true, skillType: true, phone: true }
     });
     const assignedLabourerIdsSet = new Set(activeAssignments.map(a => a.labourerId));
-    const unassignedLabourers = activeLabourersList.filter(l => !assignedLabourerIdsSet.has(l.id));
+    const unassignedLabourers = activeLabourersList
+      .filter(l => !assignedLabourerIdsSet.has(l.id))
+      .map(l => {
+        const att = todayAttMap.get(l.id);
+        return {
+          ...l,
+          todayAttendance: att ? { status: att.status, remarks: att.remarks } : null
+        };
+      });
+
+    // Fetch today's DAILY_NOTE project activities
+    const todayDailyNotes = await prisma.projectActivity.findMany({
+      where: {
+        activityType: 'DAILY_NOTE',
+        createdAt: {
+          gte: todayUTC,
+          lt: new Date(todayUTC.getTime() + 24 * 60 * 60 * 1000)
+        }
+      }
+    });
+    const projectDailyNotesMap = new Map(todayDailyNotes.map(a => [a.projectId, a.description]));
 
     // Construct project allocation widget payload
     const projectAllocations = activeProjectsList.map(p => {
@@ -283,6 +303,7 @@ export async function GET() {
         absentCount,
         halfDayCount,
         leaveCount,
+        dailyNote: projectDailyNotesMap.get(p.id) || '',
         labourers: assignments.map(a => {
           const att = todayAttMap.get(a.labourerId);
           return {

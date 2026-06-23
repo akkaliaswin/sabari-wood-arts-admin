@@ -444,72 +444,86 @@ export default function LabourerDetailPage({
             </div>
           </div>
 
-          <h3 style={{ marginBottom: '12px' }}>Daily Attendance Logs</h3>
+          <h3 style={{ marginBottom: '16px' }}>Daily Attendance Log Timeline</h3>
           {labourer.attendances.length === 0 ? (
             <div className="empty-state"><p>No attendance records logged for this labourer yet.</p></div>
           ) : (
-            <>
-              {/* Desktop Table View */}
-              <div className="table-container" style={{ display: 'none' }}>
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Date</th>
-                      <th>Status</th>
-                      <th>Assigned Project</th>
-                      <th>Remarks / Comments</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {labourer.attendances.map((att) => (
-                      <tr key={att.id}>
-                        <td><strong>{new Date(att.attendanceDate).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}</strong></td>
-                        <td>
-                          <span className={`badge badge-${att.status === 'Present' ? 'completed' : att.status === 'Absent' ? 'cancelled' : 'pending'}`}>
-                            {att.status}
-                          </span>
-                        </td>
-                        <td>
+            <div className="attendance-timeline-container">
+              {labourer.attendances.map((att) => {
+                const dateObj = new Date(att.attendanceDate);
+                const dateStr = dateObj.toLocaleDateString('en-IN', {
+                  day: 'numeric',
+                  month: 'short',
+                  year: 'numeric'
+                });
+                const weekdayStr = dateObj.toLocaleDateString('en-IN', { weekday: 'long' });
+                
+                let statusColor = 'var(--text-muted)';
+                let statusBg = '#f1f5f9';
+                let statusDotColor = '#94a3b8';
+                
+                if (att.status === 'Present') {
+                  statusColor = '#15803d';
+                  statusBg = '#dcfce7';
+                  statusDotColor = '#22c55e';
+                } else if (att.status === 'Absent') {
+                  statusColor = '#b91c1c';
+                  statusBg = '#fee2e2';
+                  statusDotColor = '#ef4444';
+                } else if (att.status === 'Half Day') {
+                  statusColor = '#b45309';
+                  statusBg = '#fef3c7';
+                  statusDotColor = '#f59e0b';
+                } else if (att.status === 'Leave') {
+                  statusColor = '#1d4ed8';
+                  statusBg = '#dbeafe';
+                  statusDotColor = '#3b82f6';
+                }
+
+                return (
+                  <div key={att.id} className="timeline-log-item">
+                    <div className="timeline-log-line-node">
+                      <div className="timeline-log-dot" style={{ borderColor: statusDotColor }}>
+                        <div className="timeline-log-dot-inner" style={{ backgroundColor: statusDotColor }} />
+                      </div>
+                    </div>
+                    <div className="timeline-log-content-card">
+                      <div className="timeline-log-header">
+                        <div className="timeline-log-date-group">
+                          <span className="timeline-log-date">{dateStr}</span>
+                          <span className="timeline-log-weekday">{weekdayStr}</span>
+                        </div>
+                        <span className="status-pill-badge" style={{ color: statusColor, backgroundColor: statusBg }}>
+                          {att.status}
+                        </span>
+                      </div>
+                      
+                      <div className="timeline-log-body">
+                        <div className="timeline-log-project">
+                          <strong>Allocation:</strong>{' '}
                           {att.project ? (
-                            <Link href={`/projects/${att.project.id}`} style={{ fontWeight: '600', color: 'var(--primary)' }}>
+                            <Link href={`/projects/${att.project.id}`} className="timeline-log-project-link">
                               🪵 {att.project.projectName} ({att.project.projectCode})
                             </Link>
                           ) : (
-                            <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>General / Unallocated</span>
+                            <span className="unallocated-text">General / Unallocated Pool</span>
                           )}
-                        </td>
-                        <td>{att.remarks || '—'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Mobile Card List View */}
-              <div className="mobile-list-container">
-                {labourer.attendances.map((att) => (
-                  <div key={att.id} className="mobile-list-card" style={{ borderLeft: `4px solid ${att.status === 'Present' ? 'var(--success)' : att.status === 'Absent' ? 'var(--danger)' : 'var(--warning)'}` }}>
-                    <div className="mobile-list-header">
-                      <div>
-                        <div className="mobile-list-title">
-                          {new Date(att.attendanceDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
                         </div>
-                        <div className="mobile-list-subtitle" style={{ marginTop: '2px' }}>
-                          {new Date(att.attendanceDate).toLocaleDateString('en-IN', { weekday: 'long' })}
+                        
+                        <div className="timeline-log-remarks">
+                          <strong>Remarks:</strong>{' '}
+                          {att.remarks ? (
+                            <span className="remarks-text">{att.remarks}</span>
+                          ) : (
+                            <span className="no-remarks-text">No supervisor remarks logged.</span>
+                          )}
                         </div>
                       </div>
-                      <span className={`badge badge-${att.status === 'Present' ? 'completed' : att.status === 'Absent' ? 'cancelled' : 'pending'}`}>
-                        {att.status}
-                      </span>
-                    </div>
-                    <div style={{ marginTop: '8px', borderTop: '1px dashed var(--border)', paddingTop: '6px', fontSize: '0.85rem' }}>
-                      <strong>Project:</strong> {att.project ? `${att.project.projectName} (${att.project.projectCode})` : 'General / Unallocated'}
-                      {att.remarks && <div style={{ marginTop: '4px' }}><strong>Remarks:</strong> {att.remarks}</div>}
                     </div>
                   </div>
-                ))}
-              </div>
-            </>
+                );
+              })}
+            </div>
           )}
         </div>
       )}
@@ -724,6 +738,122 @@ export default function LabourerDetailPage({
         @media (max-width: 767px) {
           .table-container { display: none !important; }
           .mobile-list-container { display: block !important; }
+        }
+
+        .attendance-timeline-container {
+          position: relative;
+          padding-left: 20px;
+          display: flex;
+          flex-direction: column;
+          gap: 16px;
+          margin-top: 10px;
+        }
+        .attendance-timeline-container::before {
+          content: '';
+          position: absolute;
+          left: 4px;
+          top: 10px;
+          bottom: 10px;
+          width: 2px;
+          background: #e2e8f0;
+        }
+        .timeline-log-item {
+          display: flex;
+          position: relative;
+        }
+        .timeline-log-line-node {
+          position: absolute;
+          left: -20px;
+          top: 8px;
+          width: 10px;
+          height: 10px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 10;
+        }
+        .timeline-log-dot {
+          width: 10px;
+          height: 10px;
+          border: 2px solid #94a3b8;
+          border-radius: 50%;
+          background: white;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .timeline-log-dot-inner {
+          width: 4px;
+          height: 4px;
+          background: #94a3b8;
+          border-radius: 50%;
+        }
+        .timeline-log-content-card {
+          background: white;
+          border: 1px solid #e2e8f0;
+          border-radius: 8px;
+          padding: 12px 16px;
+          width: 100%;
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+          box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+        }
+        .timeline-log-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          border-bottom: 1px dashed #f1f5f9;
+          padding-bottom: 6px;
+        }
+        .timeline-log-date-group {
+          display: flex;
+          align-items: baseline;
+          gap: 8px;
+        }
+        .timeline-log-date {
+          font-size: 0.95rem;
+          font-weight: 800;
+          color: #0f172a;
+        }
+        .timeline-log-weekday {
+          font-size: 0.75rem;
+          color: #64748b;
+          font-weight: 500;
+        }
+        .status-pill-badge {
+          font-size: 0.7rem;
+          font-weight: 800;
+          padding: 2px 8px;
+          border-radius: 9999px;
+          text-transform: uppercase;
+        }
+        .timeline-log-body {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+          font-size: 0.85rem;
+          color: #334155;
+        }
+        .timeline-log-project-link {
+          font-weight: 600;
+          color: var(--primary);
+          text-decoration: none;
+        }
+        .timeline-log-project-link:hover {
+          text-decoration: underline;
+        }
+        .unallocated-text {
+          color: #64748b;
+          font-style: italic;
+        }
+        .remarks-text {
+          color: #0f172a;
+          font-weight: 500;
+        }
+        .no-remarks-text {
+          color: #94a3b8;
+          font-style: italic;
         }
       `}</style>
     </div>

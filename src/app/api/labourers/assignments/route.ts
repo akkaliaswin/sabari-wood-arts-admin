@@ -110,11 +110,12 @@ export async function POST(req: NextRequest) {
           select: { name: true, labourCode: true },
         });
 
+        const reasonText = remarks ? ` Reason: ${remarks}` : '';
         await tx.projectActivity.create({
           data: {
             projectId: activeAssignment.projectId,
             activityType: 'LABOUR_TRANSFERRED',
-            description: `Labourer ${lab?.name} (${lab?.labourCode}) transferred to project '${newProject?.projectName}' (${newProject?.projectCode}).`,
+            description: `Labourer ${lab?.name} (${lab?.labourCode}) transferred to project '${newProject?.projectName}' (${newProject?.projectCode}).${reasonText}`,
           },
         });
 
@@ -122,7 +123,7 @@ export async function POST(req: NextRequest) {
           data: {
             projectId,
             activityType: 'LABOUR_ASSIGNED',
-            description: `Labourer ${lab?.name} (${lab?.labourCode}) transferred from project '${oldProject?.projectName}' (${oldProject?.projectCode}).`,
+            description: `Labourer ${lab?.name} (${lab?.labourCode}) transferred from project '${oldProject?.projectName}' (${oldProject?.projectCode}).${reasonText}`,
           },
         });
       } else {
