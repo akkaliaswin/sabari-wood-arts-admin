@@ -85,6 +85,29 @@ export async function GET(
     const uniqueProjectIds = new Set(labourer.labourCosts.map((cost: LabourCost) => cost.projectId));
     const projectsCount = uniqueProjectIds.size;
 
+    // Overtime stats
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth();
+
+    let totalOtThisMonth = 0;
+    let totalOtThisYear = 0;
+    let lifetimeOtHours = 0;
+
+    labourer.attendances.forEach((att: any) => {
+      const ot = Number(att.otHours || 0);
+      if (ot > 0) {
+        lifetimeOtHours += ot;
+        const attDate = new Date(att.attendanceDate);
+        if (attDate.getFullYear() === currentYear) {
+          totalOtThisYear += ot;
+          if (attDate.getMonth() === currentMonth) {
+            totalOtThisMonth += ot;
+          }
+        }
+      }
+    });
+
     // Attendance stats
     const totalWorkingDays = labourer.attendances.length;
     const presentDays = labourer.attendances.filter((a) => a.status === 'Present').length;
@@ -104,6 +127,9 @@ export async function GET(
       absentDays,
       halfDays,
       attendancePercentage,
+      totalOtThisMonth,
+      totalOtThisYear,
+      lifetimeOtHours,
     });
   } catch (error) {
     console.error('Error fetching labourer details:', error);

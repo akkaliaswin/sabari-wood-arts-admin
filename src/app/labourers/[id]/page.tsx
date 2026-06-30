@@ -32,6 +32,7 @@ interface LabourAttendanceShort {
   status: string;
   remarks: string | null;
   project?: ProjectShort | null;
+  otHours?: number;
 }
 
 interface ProjectLabourAssignmentShort {
@@ -65,6 +66,9 @@ interface LabourerDetail {
   absentDays: number;
   halfDays: number;
   attendancePercentage: number;
+  totalOtThisMonth?: number;
+  totalOtThisYear?: number;
+  lifetimeOtHours?: number;
 }
 
 export default function LabourerDetailPage({
@@ -78,7 +82,7 @@ export default function LabourerDetailPage({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [editMode, setEditMode] = useState(false);
-  const [activeTab, setActiveTab] = useState<'profile' | 'attendance' | 'projects' | 'wages'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'attendance' | 'projects' | 'wages' | 'overtime'>('profile');
 
   // Edit fields
   const [name, setName] = useState('');
@@ -246,6 +250,13 @@ export default function LabourerDetailPage({
           style={{ flex: '1 0 auto', minWidth: '100px', fontWeight: 'bold' }}
         >
           💳 Wages & Paid ({labourer.labourCosts.length})
+        </button>
+        <button
+          onClick={() => { setActiveTab('overtime'); setEditMode(false); }}
+          className={`tab-button ${activeTab === 'overtime' ? 'active' : ''}`}
+          style={{ flex: '1 0 auto', minWidth: '100px', fontWeight: 'bold' }}
+        >
+          ⏰ Overtime History ({labourer.attendances.filter(a => Number(a.otHours || 0) > 0).length})
         </button>
       </div>
 
@@ -724,6 +735,100 @@ export default function LabourerDetailPage({
                     </div>
                   </div>
                 ))}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'overtime' && (
+        /* Overtime history and stats workspace */
+        <div>
+          {/* Overtime stats grid */}
+          <div className="stat-grid" style={{ marginBottom: '24px' }}>
+            <div className="stat-card" style={{ borderLeft: '4px solid var(--primary)' }}>
+              <div className="stat-label">Total OT This Month</div>
+              <div className="stat-value" style={{ color: 'var(--primary)' }}>
+                {labourer.totalOtThisMonth || 0} hrs
+              </div>
+            </div>
+            <div className="stat-card" style={{ borderLeft: '4px solid var(--warning)' }}>
+              <div className="stat-label">Total OT This Year</div>
+              <div className="stat-value" style={{ color: 'var(--warning)' }}>
+                {labourer.totalOtThisYear || 0} hrs
+              </div>
+            </div>
+            <div className="stat-card" style={{ borderLeft: '4px solid var(--success)' }}>
+              <div className="stat-label">Lifetime OT Hours</div>
+              <div className="stat-value" style={{ color: 'var(--success)' }}>
+                {labourer.lifetimeOtHours || 0} hrs
+              </div>
+            </div>
+          </div>
+
+          <h3 style={{ marginBottom: '12px' }}>Overtime Log History</h3>
+          {(!labourer.attendances || labourer.attendances.filter(a => Number(a.otHours || 0) > 0).length === 0) ? (
+            <div className="empty-state"><p>No overtime hours logged for this labourer yet.</p></div>
+          ) : (
+            <>
+              {/* Desktop Table View */}
+              <div className="table-container" style={{ display: 'none' }}>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Project Worked</th>
+                      <th>Overtime Hours</th>
+                      <th>Supervisor Notes</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {labourer.attendances
+                      .filter(a => Number(a.otHours || 0) > 0)
+                      .map((att) => (
+                        <tr key={att.id}>
+                          <td>{new Date(att.attendanceDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</td>
+                          <td>
+                            {att.project ? (
+                              <Link href={`/projects/${att.project.id}`} style={{ fontWeight: '600', color: 'var(--primary)' }}>
+                                {att.project.projectName} ({att.project.projectCode})
+                              </Link>
+                            ) : (
+                              <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>General Bench / None</span>
+                            )}
+                          </td>
+                          <td style={{ fontWeight: 'bold', color: 'var(--primary)' }}>
+                            {att.otHours} hrs
+                          </td>
+                          <td>
+                            <div className="remarks-text">{att.remarks || '—'}</div>
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Mobile Card List View */}
+              <div className="mobile-list-container">
+                {labourer.attendances
+                  .filter(a => Number(a.otHours || 0) > 0)
+                  .map((att) => (
+                    <div key={att.id} className="mobile-list-card" style={{ borderLeft: '4px solid var(--primary)' }}>
+                      <div className="mobile-list-header">
+                        <div>
+                          <div className="mobile-list-title">{att.otHours} hrs</div>
+                          <div className="mobile-list-subtitle">
+                            {new Date(att.attendanceDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                          </div>
+                        </div>
+                      </div>
+                      <div style={{ marginTop: '8px', borderTop: '1px dashed var(--border)', paddingTop: '6px', fontSize: '0.85rem' }}>
+                        <strong>Project Worked:</strong> {att.project?.projectName || 'General Bench'} <br />
+                        <strong>Notes:</strong> {att.remarks || '—'}
+                      </div>
+                    </div>
+                  ))}
               </div>
             </>
           )}

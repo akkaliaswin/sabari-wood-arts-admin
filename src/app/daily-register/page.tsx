@@ -34,6 +34,8 @@ interface RegisterRow {
   paymentType: string; // Daily Wage, Advance, Partial Settlement
   remarks: string;
   todayPayments: TodayPayment[];
+  otHours: string;
+  todayOt: number;
 }
 
 const attendanceOptions = [
@@ -57,6 +59,86 @@ export default function DailyRegisterPage() {
   const [modalOpenRowIndex, setModalOpenRowIndex] = useState<number | null>(null);
   const [projectSearchQuery, setProjectSearchQuery] = useState('');
   const [expandedPayRowIndices, setExpandedPayRowIndices] = useState<Set<number>>(new Set());
+
+  // Weekly Glance State Variables
+  const [activeRegisterTab, setActiveRegisterTab] = useState<'today' | 'weekly'>('today');
+  const [weekRefDate, setWeekRefDate] = useState<Date>(new Date());
+  const [weeklyAttendance, setWeeklyAttendance] = useState<any[]>([]);
+  const [weeklyPayments, setWeeklyPayments] = useState<any[]>([]);
+  const [weeklyLoading, setWeeklyLoading] = useState(false);
+  const [selectedTileDetail, setSelectedTileDetail] = useState<any | null>(null);
+
+  // Weekly Glance Filters
+  const [searchWeeklyQuery, setSearchWeeklyQuery] = useState('');
+  const [filterWeeklyProject, setFilterWeeklyProject] = useState('');
+  const [filterWeeklyRole, setFilterWeeklyRole] = useState('');
+
+  const getWeekDays = (refDate: Date) => {
+    const ref = new Date(refDate);
+    const day = ref.getDay();
+    // Monday is first day (1), Sunday is last (0)
+    const diff = ref.getDate() - day + (day === 0 ? -6 : 1);
+    const monday = new Date(ref.setDate(diff));
+    monday.setHours(0, 0, 0, 0);
+
+    const days: Date[] = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(monday);
+      d.setDate(monday.getDate() + i);
+      days.push(d);
+    }
+    return days;
+  };
+
+  const loadWeeklyGlanceData = async (refDate: Date) => {
+    try {
+      setWeeklyLoading(true);
+      const days = getWeekDays(refDate);
+      const startDate = days[0].toISOString().split('T')[0];
+      const endDate = days[6].toISOString().split('T')[0];
+
+      // Fetch attendances
+      const attRes = await fetch(`/api/labourers/attendance?startDate=${startDate}&endDate=${endDate}&t=${Date.now()}`);
+      let attData: any = {};
+      if (attRes.ok) {
+        attData = await attRes.json();
+      }
+      const records = attData.records || [];
+      setWeeklyAttendance(records);
+
+      // Fetch payments
+      const payRes = await fetch(`/api/labourers/payments?startDate=${startDate}&endDate=${endDate}&t=${Date.now()}`);
+      let payData: any[] = [];
+      if (payRes.ok) {
+        payData = await payRes.json();
+      }
+      setWeeklyPayments(payData);
+    } catch (err) {
+      console.error('Error loading weekly glance:', err);
+    } finally {
+      setWeeklyLoading(false);
+    }
+  };
+
+  const handlePrevWeek = () => {
+    const nextDate = new Date(weekRefDate);
+    nextDate.setDate(nextDate.getDate() - 7);
+    setWeekRefDate(nextDate);
+  };
+
+  const handleNextWeek = () => {
+    const nextDate = new Date(weekRefDate);
+    nextDate.setDate(nextDate.getDate() + 7);
+    setWeekRefDate(nextDate);
+  };
+
+  const handleCurrentWeek = () => {
+    setWeekRefDate(new Date());
+  };
+
+  useEffect(() => {
+    loadWeeklyGlanceData(weekRefDate);
+  }, [weekRefDate]);
 
   useEffect(() => {
     loadRegisterData();
@@ -146,7 +228,9 @@ export default function DailyRegisterPage() {
           amountPaid: '',
           paymentType: 'Daily Wage',
           remarks: logged ? (logged.remarks || '') : '',
-          todayPayments: paymentsMap.get(lab.id) || []
+          todayPayments: paymentsMap.get(lab.id) || [],
+          otHours: logged && logged.otHours ? String(logged.otHours) : '',
+          todayOt: logged && logged.otHours ? Number(logged.otHours) : 0
         };
       });
 
@@ -221,7 +305,8 @@ export default function DailyRegisterPage() {
         projectIds: r.projectIds,
         amountPaid: r.amountPaid ? Number(r.amountPaid) : null,
         paymentType: r.amountPaid ? r.paymentType : null,
-        remarks: r.remarks ? r.remarks.trim() : null
+        remarks: r.remarks ? r.remarks.trim() : null,
+        otHours: r.otHours ? Number(r.otHours) : 0.0
       }));
 
       const res = await fetch('/api/labourers/daily-register', {
@@ -245,7 +330,10 @@ export default function DailyRegisterPage() {
       }));
       setRows(resetPaymentRows);
       
-      await loadRegisterData();
+      await Promise.all([
+        loadRegisterData(),
+        loadWeeklyGlanceData(weekRefDate)
+      ]);
       alert('Daily Work Register saved successfully!');
     } catch (err: any) {
       setError(err.message || 'Error occurred saving register entries.');
@@ -298,10 +386,58 @@ export default function DailyRegisterPage() {
     );
   });
 
+  // Helper to compute day tile data for Weekly Glance
+  const getDayTileData = (labourerId: string, dDate: Date) => {
+    const dateStr = dDate.toISOString().split('T')[0];
+    
+    // 1. Find attendance record
+    const att = weeklyAttendance.find(
+      (a) => a.labourerId === labourerId && a.attendanceDate.split('T')[0] === dateStr
+    );
+
+    // 2. Find payments logged on this date for this worker
+    const dayPayments = weeklyPayments.filter(
+      (p) => p.labourerId === labourerId && p.paymentDate.split('T')[0] === dateStr
+    );
+    const paySum = dayPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+
+    return {
+      date: dDate,
+      attendance: att,
+      payments: dayPayments,
+      paySum,
+      status: att ? att.status : '', // Present, Half Day, Absent, Leave
+      otHours: att ? (att.otHours || 0) : 0,
+      remarks: att ? (att.remarks || '') : ''
+    };
+  };
+
+  // Date range display helper for Weekly Glance
+  const formatDateRange = () => {
+    const days = getWeekDays(weekRefDate);
+    const start = days[0];
+    const end = days[6];
+    const startStr = start.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+    const endStr = end.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+    return `${startStr} - ${endStr}`;
+  };
+
+  // Filtered workers list for Weekly Glance Board
+  const weeklyWorkersFiltered = rows.filter((r) => {
+    const matchesName = r.name.toLowerCase().includes(searchWeeklyQuery.toLowerCase());
+    const matchesRole = filterWeeklyRole ? r.skillType === filterWeeklyRole : true;
+    const workerAtts = weeklyAttendance.filter(a => a.labourerId === r.labourerId);
+    const matchesProject = filterWeeklyProject
+      ? workerAtts.some(a => a.projectId === filterWeeklyProject)
+      : true;
+
+    return matchesName && matchesRole && matchesProject;
+  });
+
   return (
     <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '16px' }} className="register-content">
       
-      {/* Dynamic Notebook-themed register header */}
+      {/* Unified Main Register Header */}
       <div className="register-notebook-header" style={{
         background: '#fcfaf5',
         border: '2px solid #dfd8cb',
@@ -316,58 +452,471 @@ export default function DailyRegisterPage() {
               📓 Daily Work Register
             </h1>
             <p style={{ margin: '4px 0 0 0', color: '#8c7d6b', fontSize: '0.95rem', fontWeight: 500 }}>
-              {formattedHeaderDate}
+              {activeRegisterTab === 'today' ? formattedHeaderDate : `Week: ${formatDateRange()}`}
             </p>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <label style={{ fontSize: '0.9rem', fontWeight: 'bold', color: '#6d5f50' }}>Register Date:</label>
-            <input
-              type="date"
-              className="form-control"
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
+
+          {/* Today's Register / Weekly Glance Tabs */}
+          <div style={{ display: 'flex', background: '#f0ebd8', borderRadius: '30px', padding: '4px', border: '1px solid #dfd8cb' }}>
+            <button
+              onClick={() => setActiveRegisterTab('today')}
               style={{
-                background: 'white',
-                border: '2px solid #dfd8cb',
-                borderRadius: '8px',
-                padding: '8px 12px',
-                fontSize: '1rem',
-                color: '#3d3429',
+                border: 'none',
+                borderRadius: '25px',
+                padding: '8px 20px',
                 fontWeight: 'bold',
-                maxWidth: '180px',
-                cursor: 'pointer'
+                cursor: 'pointer',
+                fontSize: '0.9rem',
+                transition: 'all 0.2s ease',
+                background: activeRegisterTab === 'today' ? '#df662e' : 'transparent',
+                color: activeRegisterTab === 'today' ? 'white' : '#6d5f50',
+                boxShadow: activeRegisterTab === 'today' ? '0 2px 6px rgba(223,102,46,0.2)' : 'none'
               }}
-            />
+            >
+              Today's Register
+            </button>
+            <button
+              onClick={() => setActiveRegisterTab('weekly')}
+              style={{
+                border: 'none',
+                borderRadius: '25px',
+                padding: '8px 20px',
+                fontWeight: 'bold',
+                cursor: 'pointer',
+                fontSize: '0.9rem',
+                transition: 'all 0.2s ease',
+                background: activeRegisterTab === 'weekly' ? '#df662e' : 'transparent',
+                color: activeRegisterTab === 'weekly' ? 'white' : '#6d5f50',
+                boxShadow: activeRegisterTab === 'weekly' ? '0 2px 6px rgba(223,102,46,0.2)' : 'none'
+              }}
+            >
+              Weekly Glance
+            </button>
           </div>
         </div>
 
-        {/* Dynamic Supervisor Stats Panel */}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
-          gap: '12px',
-          marginTop: '20px',
-          paddingTop: '16px',
-          borderTop: '2px dashed #dfd8cb'
-        }}>
-          <div style={{ background: '#ecfdf5', border: '1px solid #d1fae5', borderRadius: '8px', padding: '12px', textAlign: 'center' }}>
-            <span style={{ fontSize: '0.8rem', fontWeight: 'bold', textTransform: 'uppercase', color: '#065f46', display: 'block' }}>Present</span>
-            <strong style={{ fontSize: '1.8rem', color: '#047857', fontWeight: 800 }}>{presentCount}</strong>
+        {/* Date selection & stats summary (Only for Today's view) */}
+        {activeRegisterTab === 'today' && (
+          <>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '20px', paddingTop: '16px', borderTop: '2px dashed #dfd8cb' }}>
+              <label style={{ fontSize: '0.9rem', fontWeight: 'bold', color: '#6d5f50' }}>Register Date:</label>
+              <input
+                type="date"
+                className="form-control"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                style={{
+                  background: 'white',
+                  border: '2px solid #dfd8cb',
+                  borderRadius: '8px',
+                  padding: '8px 12px',
+                  fontSize: '1rem',
+                  color: '#3d3429',
+                  fontWeight: 'bold',
+                  maxWidth: '180px',
+                  cursor: 'pointer'
+                }}
+              />
+            </div>
+
+            {/* Dynamic Supervisor Stats Panel */}
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
+              gap: '12px',
+              marginTop: '16px'
+            }}>
+              <div style={{ background: '#ecfdf5', border: '1px solid #d1fae5', borderRadius: '8px', padding: '12px', textAlign: 'center' }}>
+                <span style={{ fontSize: '0.8rem', fontWeight: 'bold', textTransform: 'uppercase', color: '#065f46', display: 'block' }}>Present</span>
+                <strong style={{ fontSize: '1.8rem', color: '#047857', fontWeight: 800 }}>{presentCount}</strong>
+              </div>
+              <div style={{ background: '#fef2f2', border: '1px solid #fee2e2', borderRadius: '8px', padding: '12px', textAlign: 'center' }}>
+                <span style={{ fontSize: '0.8rem', fontWeight: 'bold', textTransform: 'uppercase', color: '#991b1b', display: 'block' }}>Absent</span>
+                <strong style={{ fontSize: '1.8rem', color: '#b91c1c', fontWeight: 800 }}>{absentCount}</strong>
+              </div>
+              <div style={{ background: '#fffbeb', border: '1px solid #fef3c7', borderRadius: '8px', padding: '12px', textAlign: 'center' }}>
+                <span style={{ fontSize: '0.8rem', fontWeight: 'bold', textTransform: 'uppercase', color: '#92400e', display: 'block' }}>Half Day</span>
+                <strong style={{ fontSize: '1.8rem', color: '#d97706', fontWeight: 800 }}>{halfDayCount}</strong>
+              </div>
+              <div style={{ background: '#f3f4f6', border: '1px solid #e5e7eb', borderRadius: '8px', padding: '12px', textAlign: 'center' }}>
+                <span style={{ fontSize: '0.8rem', fontWeight: 'bold', textTransform: 'uppercase', color: '#374151', display: 'block' }}>Leave</span>
+                <strong style={{ fontSize: '1.8rem', color: '#4b5563', fontWeight: 800 }}>{leaveCount}</strong>
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* Week navigation (Only for Weekly view) */}
+        {activeRegisterTab === 'weekly' && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '20px', paddingTop: '16px', borderTop: '2px dashed #dfd8cb' }}>
+            <button onClick={handlePrevWeek} className="btn btn-secondary btn-sm" style={{ padding: '8px 16px', fontWeight: 'bold' }}>
+              ◀ Previous Week
+            </button>
+            <button onClick={handleCurrentWeek} className="btn btn-primary btn-sm" style={{ padding: '8px 16px', fontWeight: 'bold', background: '#df662e', border: 'none' }}>
+              Current Week
+            </button>
+            <button onClick={handleNextWeek} className="btn btn-secondary btn-sm" style={{ padding: '8px 16px', fontWeight: 'bold' }}>
+              Next Week ▶
+            </button>
           </div>
-          <div style={{ background: '#fef2f2', border: '1px solid #fee2e2', borderRadius: '8px', padding: '12px', textAlign: 'center' }}>
-            <span style={{ fontSize: '0.8rem', fontWeight: 'bold', textTransform: 'uppercase', color: '#991b1b', display: 'block' }}>Absent</span>
-            <strong style={{ fontSize: '1.8rem', color: '#b91c1c', fontWeight: 800 }}>{absentCount}</strong>
-          </div>
-          <div style={{ background: '#fffbeb', border: '1px solid #fef3c7', borderRadius: '8px', padding: '12px', textAlign: 'center' }}>
-            <span style={{ fontSize: '0.8rem', fontWeight: 'bold', textTransform: 'uppercase', color: '#92400e', display: 'block' }}>Half Day</span>
-            <strong style={{ fontSize: '1.8rem', color: '#d97706', fontWeight: 800 }}>{halfDayCount}</strong>
-          </div>
-          <div style={{ background: '#f3f4f6', border: '1px solid #e5e7eb', borderRadius: '8px', padding: '12px', textAlign: 'center' }}>
-            <span style={{ fontSize: '0.8rem', fontWeight: 'bold', textTransform: 'uppercase', color: '#374151', display: 'block' }}>Leave</span>
-            <strong style={{ fontSize: '1.8rem', color: '#4b5563', fontWeight: 800 }}>{leaveCount}</strong>
-          </div>
-        </div>
+        )}
       </div>
+
+      {/* Weekly Glance Board section */}
+      {activeRegisterTab === 'weekly' && (
+        <div className="weekly-glance-section" style={{
+          background: '#fcfaf5',
+          border: '2px solid #dfd8cb',
+          borderRadius: '12px',
+          padding: '24px',
+          marginBottom: '24px',
+          boxShadow: '0 4px 10px rgba(0,0,0,0.02)'
+        }}>
+          {/* Weekly Filters */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px', marginBottom: '20px' }}>
+            <div>
+              <label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#6d5f50', display: 'block', marginBottom: '4px' }}>Search Labourer</label>
+              <input
+                type="text"
+                placeholder="Search name..."
+                className="form-control"
+                value={searchWeeklyQuery}
+                onChange={(e) => setSearchWeeklyQuery(e.target.value)}
+                style={{ background: 'white', border: '1px solid #dfd8cb', borderRadius: '6px', padding: '8px 10px', fontSize: '0.9rem', width: '100%' }}
+              />
+            </div>
+
+            <div>
+              <label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#6d5f50', display: 'block', marginBottom: '4px' }}>Filter By Project</label>
+              <select
+                className="form-control"
+                value={filterWeeklyProject}
+                onChange={(e) => setFilterWeeklyProject(e.target.value)}
+                style={{ background: 'white', border: '1px solid #dfd8cb', borderRadius: '6px', padding: '8px 10px', fontSize: '0.9rem', width: '100%' }}
+              >
+                <option value="">-- All Projects --</option>
+                {projects.map((p) => (
+                  <option key={p.id} value={p.id}>{p.projectName}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#6d5f50', display: 'block', marginBottom: '4px' }}>Filter By Role</label>
+              <select
+                className="form-control"
+                value={filterWeeklyRole}
+                onChange={(e) => setFilterWeeklyRole(e.target.value)}
+                style={{ background: 'white', border: '1px solid #dfd8cb', borderRadius: '6px', padding: '8px 10px', fontSize: '0.9rem', width: '100%' }}
+              >
+                <option value="">-- All Roles --</option>
+                {['Carpenter', 'Polisher', 'Painter', 'Helper', 'Installer'].map((role) => (
+                  <option key={role} value={role}>{role}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Glance Grid Content */}
+          {weeklyLoading ? (
+            <div style={{ textAlign: 'center', padding: '30px', color: '#8c7d6b' }}>
+              🔄 Loading weekly glance tracker...
+            </div>
+          ) : weeklyWorkersFiltered.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '30px', color: '#8c7d6b', background: 'white', border: '1px dashed #dfd8cb', borderRadius: '8px' }}>
+              No matching labourers found for the active filters.
+            </div>
+          ) : (
+            <div>
+              {/* Desktop Board Layout */}
+              <div className="weekly-desktop-board" style={{ display: 'none', flexDirection: 'column', gap: '16px' }}>
+                {/* Grid header row */}
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: '180px repeat(7, 1fr) 200px',
+                  gap: '10px',
+                  alignItems: 'center',
+                  borderBottom: '2px solid #dfd8cb',
+                  paddingBottom: '8px',
+                  fontWeight: 'bold',
+                  color: '#6d5f50',
+                  fontSize: '0.85rem'
+                }}>
+                  <div>Labourer</div>
+                  {getWeekDays(weekRefDate).map((d, dIdx) => (
+                    <div key={dIdx} style={{ textAlign: 'center' }}>
+                      {d.toLocaleDateString('en-IN', { weekday: 'short' })}<br/>
+                      <span style={{ fontSize: '0.75rem', color: '#8c7d6b' }}>{d.getDate()}</span>
+                    </div>
+                  ))}
+                  <div style={{ textAlign: 'right' }}>Weekly Summary</div>
+                </div>
+
+                {/* Grid body rows */}
+                {weeklyWorkersFiltered.map((worker) => {
+                  const weekTiles = getWeekDays(weekRefDate).map((d) => getDayTileData(worker.labourerId, d));
+                  const pCount = weekTiles.filter(t => t.status === 'Present').length;
+                  const hCount = weekTiles.filter(t => t.status === 'Half Day').length;
+                  const aCount = weekTiles.filter(t => t.status === 'Absent' || t.status === 'Leave').length;
+                  const totalPaidWeek = weekTiles.reduce((sum, t) => sum + t.paySum, 0);
+                  const totalOtWeek = weekTiles.reduce((sum, t) => sum + t.otHours, 0);
+
+                  return (
+                    <div key={worker.labourerId} style={{
+                      display: 'grid',
+                      gridTemplateColumns: '180px repeat(7, 1fr) 200px',
+                      gap: '10px',
+                      alignItems: 'center',
+                      borderBottom: '1px solid #eee0cd',
+                      paddingBottom: '10px'
+                    }}>
+                      {/* Labour details */}
+                      <div>
+                        <div style={{ fontWeight: 800, fontSize: '0.95rem', color: '#3d3429' }}>{worker.name}</div>
+                        <span style={{ fontSize: '0.75rem', background: '#f0ebd8', color: '#7a6a53', padding: '1px 6px', borderRadius: '4px', display: 'inline-block', fontWeight: 'bold' }}>
+                          {worker.skillType}
+                        </span>
+                      </div>
+
+                      {/* 7 Days Tiles */}
+                      {weekTiles.map((tile, tileIdx) => {
+                        const { status, paySum, otHours, remarks, attendance } = tile;
+                        
+                        // Determine colors based on status
+                        let color = '#6b7280';
+                        let bg = '#f3f4f6';
+                        let border = '1px solid #e5e7eb';
+                        let statusLabel = '—';
+
+                        if (status === 'Present') {
+                          color = '#047857';
+                          bg = '#ecfdf5';
+                          border = '2px solid #a7f3d0';
+                          statusLabel = attendance?.project ? attendance.project.projectName : 'Bench';
+                        } else if (status === 'Half Day') {
+                          color = '#b45309';
+                          bg = '#fffbeb';
+                          border = '2px solid #fef3c7';
+                          statusLabel = attendance?.project ? attendance.project.projectName : 'Bench';
+                        } else if (status === 'Absent' || status === 'Leave') {
+                          color = '#b91c1c';
+                          bg = '#fef2f2';
+                          border = '2px solid #fee2e2';
+                          statusLabel = status === 'Leave' ? 'Leave' : 'Absent';
+                        }
+
+                        return (
+                          <div
+                            key={tileIdx}
+                            onClick={() => setSelectedTileDetail({
+                              ...tile,
+                              workerName: worker.name,
+                              status
+                            })}
+                            style={{
+                              background: bg,
+                              border,
+                              color,
+                              borderRadius: '8px',
+                              padding: '8px',
+                              height: '80px',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              justifyContent: 'space-between',
+                              transition: 'all 0.15s ease',
+                              boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
+                            }}
+                            onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.03)'}
+                            onMouseLeave={(e) => e.currentTarget.style.transform = 'none'}
+                          >
+                            {/* Project Name or status */}
+                            <div style={{ fontWeight: 'bold', fontSize: '0.8rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {status === 'Present' ? `🟢 ${statusLabel}` : status === 'Half Day' ? `🟡 ${statusLabel}` : status === 'Absent' || status === 'Leave' ? `🔴 ${statusLabel}` : '—'}
+                            </div>
+
+                            {/* Payout & OT & Notes */}
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '2px' }}>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
+                                {paySum > 0 && (
+                                  <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#047857' }}>
+                                    ₹{paySum}
+                                  </span>
+                                )}
+                                {otHours > 0 && (
+                                  <span style={{ fontSize: '0.7rem', fontWeight: 'bold', background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe', borderRadius: '4px', padding: '1px 3px' }}>
+                                    OT {otHours}h
+                                  </span>
+                                )}
+                              </div>
+                              {remarks && (
+                                <span style={{ fontSize: '0.75rem' }} title={remarks}>📝</span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+
+                      {/* Weekly worker summary metrics */}
+                      <div style={{
+                        textAlign: 'right',
+                        fontSize: '0.8rem',
+                        color: '#3d3429',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '2px',
+                        justifyContent: 'center',
+                        height: '100%'
+                      }}>
+                        <div>
+                          <span style={{ fontWeight: 'bold' }}>P:</span> {pCount} | <span style={{ fontWeight: 'bold' }}>H:</span> {hCount} | <span style={{ fontWeight: 'bold' }}>A:</span> {aCount}
+                        </div>
+                        <div style={{ color: '#047857', fontWeight: 800 }}>
+                          Paid: ₹{totalPaidWeek}
+                        </div>
+                        <div style={{ color: '#1d4ed8', fontWeight: 'bold' }}>
+                          OT: {totalOtWeek} hrs
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Mobile Planner Layout */}
+              <div className="weekly-mobile-board" style={{ display: 'none', flexDirection: 'column', gap: '16px' }}>
+                {weeklyWorkersFiltered.map((worker) => {
+                  const weekTiles = getWeekDays(weekRefDate).map((d) => getDayTileData(worker.labourerId, d));
+                  const pCount = weekTiles.filter(t => t.status === 'Present').length;
+                  const hCount = weekTiles.filter(t => t.status === 'Half Day').length;
+                  const aCount = weekTiles.filter(t => t.status === 'Absent' || t.status === 'Leave').length;
+                  const totalPaidWeek = weekTiles.reduce((sum, t) => sum + t.paySum, 0);
+                  const totalOtWeek = weekTiles.reduce((sum, t) => sum + t.otHours, 0);
+
+                  return (
+                    <div key={worker.labourerId} style={{
+                      background: 'white',
+                      border: '1px solid #dfd8cb',
+                      borderRadius: '10px',
+                      padding: '16px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '12px'
+                    }}>
+                      {/* Card Header info */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                        <div>
+                          <h4 style={{ fontWeight: 800, fontSize: '1.1rem', color: '#3d3429', margin: 0 }}>{worker.name}</h4>
+                          <span style={{ fontSize: '0.75rem', background: '#f0ebd8', color: '#7a6a53', padding: '1px 6px', borderRadius: '4px', display: 'inline-block', fontWeight: 'bold', marginTop: '2px' }}>
+                            {worker.skillType}
+                          </span>
+                        </div>
+                        
+                        {/* Mobile totals sum summaries */}
+                        <div style={{ textAlign: 'right', fontSize: '0.75rem', color: '#8c7d6b' }}>
+                          <strong>Paid: ₹{totalPaidWeek}</strong> • <strong>OT: {totalOtWeek}h</strong>
+                        </div>
+                      </div>
+
+                      {/* Mon-Sun cards layout stack */}
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px' }}>
+                        {weekTiles.map((tile, tileIdx) => {
+                          const { status, paySum, otHours, remarks } = tile;
+                          
+                          let bg = '#f3f4f6';
+                          let border = '1px solid #e5e7eb';
+                          let indicatorColor = '#6b7280';
+
+                          if (status === 'Present') {
+                            bg = '#ecfdf5';
+                            border = '1px solid #a7f3d0';
+                            indicatorColor = '#047857';
+                          } else if (status === 'Half Day') {
+                            bg = '#fffbeb';
+                            border = '1px solid #fef3c7';
+                            indicatorColor = '#b45309';
+                          } else if (status === 'Absent' || status === 'Leave') {
+                            bg = '#fef2f2';
+                            border = '1px solid #fee2e2';
+                            indicatorColor = '#b91c1c';
+                          }
+
+                          return (
+                            <div
+                              key={tileIdx}
+                              onClick={() => setSelectedTileDetail({
+                                ...tile,
+                                workerName: worker.name,
+                                status
+                              })}
+                              style={{
+                                background: bg,
+                                border,
+                                borderRadius: '6px',
+                                padding: '4px 2px',
+                                textAlign: 'center',
+                                cursor: 'pointer',
+                                height: '62px',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                justifyContent: 'space-between'
+                              }}
+                            >
+                              <span style={{ fontSize: '0.65rem', fontWeight: 'bold', color: '#8c7d6b' }}>
+                                {getWeekDays(weekRefDate)[tileIdx].toLocaleDateString('en-IN', { weekday: 'narrow' })}
+                              </span>
+                              
+                              {/* Circle indicator status icon */}
+                              <div style={{
+                                width: '12px',
+                                height: '12px',
+                                borderRadius: '50%',
+                                background: indicatorColor,
+                                margin: '0 auto'
+                              }} />
+                              
+                              {/* Tiny details tags */}
+                              <div style={{ fontSize: '0.55rem', fontWeight: 'bold' }}>
+                                {paySum > 0 ? `₹${paySum}` : otHours > 0 ? `OT` : remarks ? `📝` : ' '}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* Compact Project status text display (only showing days where they actually worked) */}
+                      <div style={{ fontSize: '0.75rem', background: '#faf9f6', padding: '6px 10px', borderRadius: '6px', display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                        <span style={{ fontWeight: 'bold', color: '#6d5f50' }}>Projects this week:</span>
+                        {(() => {
+                          const projectsWorked = weekTiles
+                            .filter(t => (t.status === 'Present' || t.status === 'Half Day') && t.attendance?.project)
+                            .map(t => t.attendance.project.projectName);
+                          const uniqueProjects = Array.from(new Set(projectsWorked));
+                          return uniqueProjects.length > 0
+                            ? uniqueProjects.join(', ')
+                            : <span style={{ color: '#8c7d6b', fontStyle: 'italic' }}>Bench (No active projects)</span>;
+                        })()}
+                      </div>
+
+                      {/* Stats badge counter summaries */}
+                      <div style={{ display: 'flex', gap: '8px', fontSize: '0.75rem', color: '#6d5f50' }}>
+                        <span>Present: <strong>{pCount}</strong></span> • 
+                        <span>Half Day: <strong>{hCount}</strong></span> • 
+                        <span>Absent: <strong>{aCount}</strong></span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+            </div>
+          )}
+
+        </div>
+      )}
+
+      {activeRegisterTab === 'today' && (
+        <>
 
       {error && (
         <div style={{ background: '#fef2f2', border: '1px solid #fee2e2', borderRadius: '8px', padding: '12px', color: '#b91c1c', marginBottom: '24px', fontWeight: 'bold' }}>
@@ -400,12 +949,13 @@ export default function DailyRegisterPage() {
               <table style={{ margin: 0, width: '100%', borderCollapse: 'collapse', overflow: 'visible' }}>
                 <thead>
                   <tr style={{ background: '#fcfaf5', borderBottom: '2px solid #dfd8cb' }}>
-                    <th style={{ padding: '16px', color: '#6d5f50', fontSize: '0.9rem', fontWeight: 'bold', width: '6%' }}>SL</th>
-                    <th style={{ padding: '16px', color: '#6d5f50', fontSize: '0.9rem', fontWeight: 'bold', width: '22%' }}>Labour Name</th>
-                    <th style={{ padding: '16px', color: '#6d5f50', fontSize: '0.9rem', fontWeight: 'bold', width: '16%' }}>Attendance Status</th>
-                    <th style={{ padding: '16px', color: '#6d5f50', fontSize: '0.9rem', fontWeight: 'bold', width: '24%' }}>Projects Worked Today</th>
-                    <th style={{ padding: '16px', color: '#6d5f50', fontSize: '0.9rem', fontWeight: 'bold', width: '16%' }}>Amount Paid</th>
-                    <th style={{ padding: '16px', color: '#6d5f50', fontSize: '0.9rem', fontWeight: 'bold', width: '16%' }}>Supervisor Notes</th>
+                    <th style={{ padding: '16px', color: '#6d5f50', fontSize: '0.9rem', fontWeight: 'bold', width: '5%' }}>SL</th>
+                    <th style={{ padding: '16px', color: '#6d5f50', fontSize: '0.9rem', fontWeight: 'bold', width: '20%' }}>Labour Name</th>
+                    <th style={{ padding: '16px', color: '#6d5f50', fontSize: '0.9rem', fontWeight: 'bold', width: '15%' }}>Attendance Status</th>
+                    <th style={{ padding: '16px', color: '#6d5f50', fontSize: '0.9rem', fontWeight: 'bold', width: '22%' }}>Projects Worked Today</th>
+                    <th style={{ padding: '16px', color: '#6d5f50', fontSize: '0.9rem', fontWeight: 'bold', width: '10%' }}>OT Hours</th>
+                    <th style={{ padding: '16px', color: '#6d5f50', fontSize: '0.9rem', fontWeight: 'bold', width: '14%' }}>Amount Paid</th>
+                    <th style={{ padding: '16px', color: '#6d5f50', fontSize: '0.9rem', fontWeight: 'bold', width: '14%' }}>Supervisor Notes</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -432,6 +982,12 @@ export default function DailyRegisterPage() {
                             <span style={{ fontSize: '0.75rem', background: '#f0ebd8', color: '#7a6a53', padding: '2px 8px', borderRadius: '4px', display: 'inline-block', marginTop: '2px', fontWeight: 'bold' }}>
                               {row.skillType}
                             </span>
+
+                            {row.todayOt > 0 && (
+                              <span style={{ fontSize: '0.75rem', color: '#1d4ed8', fontWeight: 'bold', marginTop: '2px' }}>
+                                OT Today: {row.todayOt} hrs
+                              </span>
+                            )}
                           </div>
                         </td>
 
@@ -619,6 +1175,27 @@ export default function DailyRegisterPage() {
                           </div>
                         </td>
 
+                        {/* OT Hours */}
+                        <td style={{ padding: '16px', verticalAlign: 'middle' }}>
+                          <input
+                            type="number"
+                            step="0.5"
+                            min="0"
+                            placeholder="OT Hours"
+                            className="form-control"
+                            value={row.otHours}
+                            onChange={(e) => handleRowChange(idx, 'otHours', e.target.value)}
+                            style={{
+                              fontSize: '0.9rem',
+                              border: '1px solid #dfd8cb',
+                              borderRadius: '6px',
+                              padding: '6px',
+                              maxWidth: '90px',
+                              background: row.otHours && Number(row.otHours) > 0 ? '#eff6ff' : 'white'
+                            }}
+                          />
+                        </td>
+
                         {/* 4. Amount Paid Today (and direct payments list details) */}
                         <td style={{ padding: '16px', verticalAlign: 'middle' }}>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
@@ -803,6 +1380,50 @@ export default function DailyRegisterPage() {
                             </button>
                           );
                         })}
+                      </div>
+                    </div>
+
+                    {/* OT Hours Section (Mobile Friendly) */}
+                    <div>
+                      <label style={{ color: '#6d5f50', fontWeight: 'bold', fontSize: '0.9rem', marginBottom: '4px', display: 'block' }}>
+                        Overtime Hours (OT)
+                      </label>
+                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                        <input
+                          type="number"
+                          step="0.5"
+                          min="0"
+                          placeholder="0.0"
+                          className="form-control"
+                          value={row.otHours}
+                          onChange={(e) => handleRowChange(idx, 'otHours', e.target.value)}
+                          style={{
+                            fontSize: '1rem',
+                            height: '44px',
+                            minHeight: '44px',
+                            border: '1px solid #dfd8cb',
+                            borderRadius: '8px',
+                            padding: '10px',
+                            flex: 1,
+                            background: row.otHours && Number(row.otHours) > 0 ? '#eff6ff' : 'white'
+                          }}
+                        />
+                        {row.todayOt > 0 && (
+                          <span style={{
+                            fontSize: '0.85rem',
+                            fontWeight: 'bold',
+                            color: '#1d4ed8',
+                            background: '#eff6ff',
+                            border: '1px solid #bfdbfe',
+                            borderRadius: '6px',
+                            padding: '10px 14px',
+                            height: '44px',
+                            display: 'flex',
+                            alignItems: 'center'
+                          }}>
+                            OT Today: {row.todayOt} hrs
+                          </span>
+                        )}
                       </div>
                     </div>
 
@@ -1047,6 +1668,8 @@ export default function DailyRegisterPage() {
           </div>
         </div>
       )}
+        </>
+      )}
 
       {/* SEARCHABLE MULTI-SELECT PROJECT MODAL DRAWER (Mobile Responsive Full-Screen Overlay) */}
       {modalOpenRowIndex !== null && (
@@ -1221,11 +1844,184 @@ export default function DailyRegisterPage() {
         </div>
       )}
 
+      {/* SEARCHABLE TILE DETAIL MODAL (Weekly Glance Side Drawer) */}
+      {selectedTileDetail && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(61, 52, 41, 0.6)',
+          backdropFilter: 'blur(3px)',
+          zIndex: 3000,
+          display: 'flex',
+          justifyContent: 'flex-end',
+        }}>
+          <div style={{
+            width: '100%',
+            maxWidth: '440px',
+            background: '#fffdf9',
+            height: '100%',
+            boxShadow: '-8px 0 32px rgba(61, 52, 41, 0.15)',
+            borderLeft: '2px solid #dfd8cb',
+            display: 'flex',
+            flexDirection: 'column',
+            padding: '24px',
+          }}>
+            {/* Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #eee0cd', paddingBottom: '16px', marginBottom: '20px' }}>
+              <div>
+                <h2 style={{ fontSize: '1.4rem', color: '#3d3429', fontWeight: 800, margin: 0 }}>
+                  📅 {new Date(selectedTileDetail.date).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                </h2>
+                <p style={{ margin: '4px 0 0 0', color: '#8c7d6b', fontSize: '0.9rem', fontWeight: 'bold' }}>
+                  Worker: {selectedTileDetail.workerName}
+                </p>
+              </div>
+              <button
+                onClick={() => setSelectedTileDetail(null)}
+                style={{
+                  background: '#f0ebd8',
+                  border: 'none',
+                  borderRadius: '50%',
+                  width: '36px',
+                  height: '36px',
+                  cursor: 'pointer',
+                  fontWeight: 'bold',
+                  color: '#3d3429',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            {/* Content */}
+            <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              
+              {/* Attendance */}
+              <div>
+                <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#8c7d6b', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>Attendance</span>
+                {selectedTileDetail.status ? (
+                  <span style={{
+                    fontSize: '1rem',
+                    fontWeight: 'bold',
+                    padding: '6px 16px',
+                    borderRadius: '8px',
+                    display: 'inline-block',
+                    background: selectedTileDetail.status === 'Present' ? '#ecfdf5' : selectedTileDetail.status === 'Half Day' ? '#fffbeb' : '#fef2f2',
+                    color: selectedTileDetail.status === 'Present' ? '#047857' : selectedTileDetail.status === 'Half Day' ? '#b45309' : '#b91c1c',
+                    border: `1px solid ${selectedTileDetail.status === 'Present' ? '#a7f3d0' : selectedTileDetail.status === 'Half Day' ? '#fef3c7' : '#fee2e2'}`
+                  }}>
+                    {selectedTileDetail.status}
+                  </span>
+                ) : (
+                  <span style={{ color: '#8c7d6b', fontStyle: 'italic' }}>No attendance logged today.</span>
+                )}
+              </div>
+
+              {/* Project */}
+              <div>
+                <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#8c7d6b', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>Project Worked</span>
+                {selectedTileDetail.attendance && selectedTileDetail.attendance.project ? (
+                  <div style={{ background: 'white', border: '1px solid #dfd8cb', borderRadius: '8px', padding: '12px' }}>
+                    <strong style={{ color: '#3d3429', display: 'block' }}>{selectedTileDetail.attendance.project.projectName}</strong>
+                    <span style={{ fontSize: '0.8rem', color: '#8c7d6b' }}>Code: {selectedTileDetail.attendance.project.projectCode}</span>
+                  </div>
+                ) : selectedTileDetail.status ? (
+                  <span style={{ color: '#3d3429', fontWeight: '500' }}>Bench / General Office</span>
+                ) : (
+                  <span style={{ color: '#8c7d6b', fontStyle: 'italic' }}>—</span>
+                )}
+              </div>
+
+              {/* OT */}
+              <div>
+                <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#8c7d6b', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>Overtime (OT)</span>
+                <div style={{ fontSize: '1.2rem', fontWeight: 'bold', color: selectedTileDetail.otHours > 0 ? '#1d4ed8' : '#3d3429' }}>
+                  {selectedTileDetail.otHours} hours
+                </div>
+              </div>
+
+              {/* Payments */}
+              <div>
+                <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#8c7d6b', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>Payments Today</span>
+                {selectedTileDetail.payments.length === 0 ? (
+                  <span style={{ color: '#8c7d6b', fontStyle: 'italic' }}>No payments logged today.</span>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {selectedTileDetail.payments.map((p: any, pIdx: number) => (
+                      <div key={pIdx} style={{
+                        background: '#ecfdf5',
+                        border: '1px solid #a7f3d0',
+                        borderRadius: '8px',
+                        padding: '10px 14px',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center'
+                      }}>
+                        <div>
+                          <strong style={{ color: '#047857', fontSize: '1.1rem' }}>₹{p.amount}</strong>
+                          <span style={{ display: 'block', fontSize: '0.75rem', color: '#065f46' }}>
+                            Type: {p.paymentType}
+                          </span>
+                        </div>
+                        <span style={{ fontSize: '0.8rem', color: '#047857' }}>
+                          {new Date(p.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                    ))}
+                    <div style={{ borderTop: '2px solid #a7f3d0', paddingTop: '8px', display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', color: '#047857' }}>
+                      <span>Total Paid:</span>
+                      <span>₹{selectedTileDetail.paySum}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Remarks */}
+              <div>
+                <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#8c7d6b', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>Supervisor Remarks</span>
+                <div style={{ background: 'white', border: '1px solid #dfd8cb', borderRadius: '8px', padding: '12px', minHeight: '60px', color: '#3d3429', fontStyle: selectedTileDetail.remarks ? 'normal' : 'italic' }}>
+                  {selectedTileDetail.remarks || 'No notes logged today.'}
+                </div>
+              </div>
+
+            </div>
+
+            {/* Footer */}
+            <div style={{ borderTop: '2px solid #eee0cd', paddingTop: '16px', display: 'flex', justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setSelectedTileDetail(null)}
+                style={{
+                  background: '#df662e',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '20px',
+                  padding: '10px 24px',
+                  fontSize: '0.95rem',
+                  fontWeight: 'bold',
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 10px rgba(223, 102, 46, 0.15)'
+                }}
+              >
+                Close Details
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <style jsx global>{`
         @media (min-width: 768px) {
           .table-responsive { display: block !important; overflow: visible !important; }
           .register-notebook-container { overflow: visible !important; }
           .table-responsive table { overflow: visible !important; }
+          .weekly-desktop-board { display: flex !important; }
+          .weekly-mobile-board { display: none !important; }
           
           .mobile-list-container { display: none !important; }
           .sticky-mobile-footer-container {
@@ -1240,6 +2036,8 @@ export default function DailyRegisterPage() {
         @media (max-width: 767px) {
           .table-responsive { display: none !important; }
           .mobile-list-container { display: block !important; }
+          .weekly-desktop-board { display: none !important; }
+          .weekly-mobile-board { display: flex !important; }
           
           .register-content {
             padding-bottom: 96px !important; /* Make sure the cards list scrolling clears the sticky footer */

@@ -8,6 +8,7 @@ interface DailyRegisterRecord {
   amountPaid: number | null; // Optional payment
   paymentType: string | null; // Daily Wage, Advance, Partial Settlement
   remarks: string | null;
+  otHours: number | null; // Added overtime hours field
 }
 
 export async function POST(req: NextRequest) {
@@ -40,6 +41,7 @@ export async function POST(req: NextRequest) {
             status: rec.status,
             remarks: rec.remarks || null,
             projectId: primaryProjectId,
+            otHours: rec.otHours ? Number(rec.otHours) : 0.0,
           },
           create: {
             labourerId: rec.labourerId,
@@ -47,6 +49,7 @@ export async function POST(req: NextRequest) {
             status: rec.status,
             remarks: rec.remarks || null,
             projectId: primaryProjectId,
+            otHours: rec.otHours ? Number(rec.otHours) : 0.0,
           },
         });
 
