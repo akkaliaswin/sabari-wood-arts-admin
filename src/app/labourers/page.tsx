@@ -67,7 +67,7 @@ export default function LabourersPage() {
     try {
       setLoading(true);
       setError('');
-      
+
       // Fetch labourers list
       const labRes = await fetch('/api/labourers');
       if (!labRes.ok) throw new Error('Failed to load labourers');
@@ -217,11 +217,11 @@ export default function LabourersPage() {
               </div>
             </div>
           </div>
-          
+
           <div className="toggle-metrics-container">
-            <button 
-              onClick={() => setShowAllMetrics(!showAllMetrics)} 
-              className="btn btn-secondary btn-sm" 
+            <button
+              onClick={() => setShowAllMetrics(!showAllMetrics)}
+              className="btn btn-secondary btn-sm"
               style={{ minHeight: '32px', height: '32px', fontSize: '0.8rem', padding: '4px 8px', marginBottom: '16px' }}
             >
               {showAllMetrics ? 'Show Less Metrics ▲' : 'Show All Metrics ▼'}
@@ -243,9 +243,9 @@ export default function LabourersPage() {
               style={{ width: '100%' }}
             />
           </div>
-          
-          <button 
-            onClick={() => setShowMobileFilters(!showMobileFilters)} 
+
+          <button
+            onClick={() => setShowMobileFilters(!showMobileFilters)}
             className="btn btn-secondary btn-sm toggle-filters-btn"
           >
             ⚙️ {showMobileFilters ? 'Hide Filters' : 'Filters'}
@@ -263,7 +263,7 @@ export default function LabourersPage() {
                 <option value="phone">Phone Number</option>
               </select>
             </div>
-            
+
             <div className="form-group" style={{ marginBottom: 0 }}>
               <label className="form-label" style={{ fontWeight: '500' }}>Skill Filter</label>
               <select
@@ -352,10 +352,10 @@ export default function LabourersPage() {
                         {lab.labourCode} • <span className="badge badge-pending" style={{ fontSize: '0.65rem', padding: '2px 6px', display: 'inline-flex', verticalAlign: 'middle' }}>{lab.skillType}</span>
                       </div>
                     </div>
-                    
+
                     <div className="mobile-menu-container">
-                      <button 
-                        onClick={(e) => { e.stopPropagation(); setActiveMenuId(isMenuOpen ? null : lab.id); }} 
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setActiveMenuId(isMenuOpen ? null : lab.id); }}
                         className="ellipsis-btn"
                         style={{ background: 'none', border: 'none', fontSize: '1.25rem', padding: '4px 8px', cursor: 'pointer', color: 'var(--text-muted)' }}
                       >
@@ -373,15 +373,15 @@ export default function LabourersPage() {
                       )}
                     </div>
                   </div>
-                  
+
                   <div style={{ marginTop: '8px', fontSize: '0.85rem' }}>
                     <strong>Phone:</strong> <a href={`tel:${lab.phone}`} style={{ color: 'var(--primary)', textDecoration: 'none', fontWeight: '500' }}>{lab.phone}</a>
                   </div>
-                  
+
                   <button onClick={() => toggleCard(lab.id)} className="view-details-btn">
                     {isExpanded ? '▲ Hide Details' : '▼ View Details'}
                   </button>
-                  
+
                   {isExpanded && (
                     <div className="mobile-details-expanded">
                       <div><strong>Joined:</strong> {new Date(lab.joiningDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</div>

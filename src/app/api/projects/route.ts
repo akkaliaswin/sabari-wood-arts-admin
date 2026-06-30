@@ -111,7 +111,7 @@ export async function POST(req: NextRequest) {
         projectType: projectType || null,
         projectLocation: projectLocation || null,
         status: status || 'Lead',
-        quotedAmount: quotedAmount ? Number(quotedAmount) : 0.0,
+        quotedAmount: (quotedAmount !== undefined && quotedAmount !== null && quotedAmount !== '') ? Number(quotedAmount) : null,
         startDate: startDate ? new Date(startDate) : null,
         expectedCompletionDate: expectedCompletionDate ? new Date(expectedCompletionDate) : null,
         actualCompletionDate: actualCompletionDate ? new Date(actualCompletionDate) : null,

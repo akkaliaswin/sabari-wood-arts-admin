@@ -55,6 +55,9 @@ export async function GET(
           },
           orderBy: { assignedDate: 'desc' },
         },
+        labourPayments: {
+          orderBy: { paymentDate: 'desc' },
+        },
       },
     });
 
@@ -63,7 +66,20 @@ export async function GET(
     }
 
     // Dynamic metrics
-    const totalPaid = labourer.labourCosts.reduce((sum: number, cost: LabourCost) => sum + Number(cost.amount), 0);
+    const totalPaid = labourer.labourPayments.reduce((sum: number, pay: any) => sum + Number(pay.amount), 0);
+    const totalAdvances = labourer.labourPayments
+      .filter((pay: any) => pay.paymentType === 'Advance')
+      .reduce((sum: number, pay: any) => sum + Number(pay.amount), 0);
+    const outstandingAdvance = Math.max(
+      0,
+      labourer.labourPayments
+        .filter((pay: any) => pay.paymentType === 'Advance' || pay.paymentType === 'Adjustment')
+        .reduce((sum: number, pay: any) => sum + Number(pay.amount), 0)
+    );
+
+    const lastPaymentDate = labourer.labourPayments.length > 0
+      ? labourer.labourPayments[0].paymentDate.toISOString()
+      : null;
     
     // Unique projects worked on
     const uniqueProjectIds = new Set(labourer.labourCosts.map((cost: LabourCost) => cost.projectId));
@@ -79,6 +95,9 @@ export async function GET(
     return NextResponse.json({
       ...labourer,
       totalPaid,
+      totalAdvances,
+      outstandingAdvance,
+      lastPaymentDate,
       projectsCount,
       totalWorkingDays,
       presentDays,

@@ -73,7 +73,7 @@ export default function LabourerDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
-  
+
   const [labourer, setLabourer] = useState<LabourerDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -129,7 +129,7 @@ export default function LabourerDetailPage({
 
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     // Phone validation: Exactly 10 digits, only digits allowed.
     const phoneRegex = /^\d{10}$/;
     if (!phoneRegex.test(phone.trim())) {

@@ -25,12 +25,62 @@ export async function GET(req: NextRequest) {
 
     const clients = await prisma.client.findMany({
       where: whereClause,
+      include: {
+        projects: {
+          where: {
+            deletedAt: null,
+          },
+          include: {
+            payments: {
+              select: {
+                amount: true,
+              },
+            },
+          },
+        },
+      },
       orderBy: {
         createdAt: 'desc',
       },
     });
 
-    return NextResponse.json(clients, {
+    const formattedClients = clients.map((client) => {
+      const projects = client.projects;
+      let paymentStatus = 'No Projects';
+      
+      if (projects.length > 0) {
+        let totalQuoted = 0;
+        let totalReceived = 0;
+        let hasPayments = false;
+        
+        for (const p of projects) {
+          if (p.status === 'Cancelled') continue;
+          totalQuoted += p.quotedAmount ? Number(p.quotedAmount) : 0;
+          const pReceived = p.payments.reduce((sum: number, pay: any) => sum + Number(pay.amount || 0), 0);
+          totalReceived += pReceived;
+          if (p.payments.length > 0) {
+            hasPayments = true;
+          }
+        }
+        
+        if (!hasPayments || totalReceived === 0) {
+          paymentStatus = 'Pending';
+        } else if (totalReceived >= totalQuoted && totalQuoted > 0) {
+          paymentStatus = 'Paid Full';
+        } else {
+          paymentStatus = 'Partially Paid';
+        }
+      }
+
+      // Destructure to remove the projects array relation from list response
+      const { projects: _, ...clientWithoutProjects } = client as any;
+      return {
+        ...clientWithoutProjects,
+        paymentStatus,
+      };
+    });
+
+    return NextResponse.json(formattedClients, {
       headers: {
         'Cache-Control': 'no-store, max-age=0',
       },

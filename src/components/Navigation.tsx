@@ -9,11 +9,13 @@ export default function Navigation() {
 
   const navItems = [
     { name: 'Dashboard', href: '/', icon: '📊' },
+    { name: 'Work Register', href: '/daily-register', icon: '📝' },
     { name: 'Operations', href: '/daily-operations', icon: '⚡' },
     { name: 'Clients', href: '/clients', icon: '👥' },
     { name: 'Projects', href: '/projects', icon: '🪵' },
     { name: 'Payments', href: '/payments', icon: '💳' },
     { name: 'Labour', href: '/labourers', icon: '🪚' },
+    { name: 'Labour Payments', href: '/labour-payments', icon: '💰' },
     { name: 'Reports', href: '/reports', icon: '📋' },
     { name: 'Settings', href: '/settings', icon: '⚙️' },
   ];

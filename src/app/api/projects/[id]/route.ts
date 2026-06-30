@@ -197,7 +197,7 @@ export async function PUT(
           projectType: projectType !== undefined ? (projectType || null) : undefined,
           projectLocation: projectLocation !== undefined ? (projectLocation || null) : undefined,
           status: status || undefined,
-          quotedAmount: quotedAmount !== undefined ? Number(quotedAmount) : undefined,
+          quotedAmount: quotedAmount !== undefined ? (quotedAmount !== null && quotedAmount !== '' ? Number(quotedAmount) : null) : undefined,
           startDate: startDate ? new Date(startDate) : (startDate === null ? null : undefined),
           expectedCompletionDate: expectedCompletionDate ? new Date(expectedCompletionDate) : (expectedCompletionDate === null ? null : undefined),
           actualCompletionDate: actualCompletionDate ? new Date(actualCompletionDate) : (actualCompletionDate === null ? null : undefined),

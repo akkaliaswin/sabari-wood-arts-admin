@@ -14,9 +14,30 @@ interface Client {
   referredBy: string | null;
   remarks: string | null;
   createdAt: string;
+  paymentStatus: string;
 }
 
 export default function ClientsPage() {
+  const getPaymentStatusBadge = (status: string) => {
+    let bg = '#f3f4f6';
+    let fg = '#4b5563';
+    if (status === 'Pending') {
+      bg = 'var(--warning-light)';
+      fg = 'var(--warning)';
+    } else if (status === 'Partially Paid') {
+      bg = 'var(--info-light)';
+      fg = 'var(--info)';
+    } else if (status === 'Paid Full') {
+      bg = 'var(--success-light)';
+      fg = 'var(--success)';
+    }
+    return (
+      <span className="badge" style={{ backgroundColor: bg, color: fg }}>
+        {status}
+      </span>
+    );
+  };
+
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -281,6 +302,7 @@ export default function ClientsPage() {
                   <th>Phone</th>
                   <th>Location</th>
                   <th>Referred By</th>
+                  <th>Payment Status</th>
                   <th style={{ textAlign: 'right' }}>Actions</th>
                 </tr>
               </thead>
@@ -294,6 +316,7 @@ export default function ClientsPage() {
                     <td>{client.phone}</td>
                     <td>{client.location || '—'}</td>
                     <td>{client.referredBy || '—'}</td>
+                    <td>{getPaymentStatusBadge(client.paymentStatus)}</td>
                     <td style={{ textAlign: 'right' }}>
                       <Link
                         href={`/clients/${client.id}`}
@@ -314,9 +337,12 @@ export default function ClientsPage() {
               <div key={client.id} className="mobile-list-card">
                 <div className="mobile-list-header">
                   <div>
-                    <span className="badge badge-pending" style={{ marginBottom: '6px' }}>
-                      {client.clientCode}
-                    </span>
+                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '6px' }}>
+                      <span className="badge badge-pending" style={{ margin: 0 }}>
+                        {client.clientCode}
+                      </span>
+                      {getPaymentStatusBadge(client.paymentStatus)}
+                    </div>
                     <div className="mobile-list-title">{client.name}</div>
                   </div>
                   <Link

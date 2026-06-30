@@ -169,30 +169,103 @@ export async function GET() {
       .filter((cost: LabourCost) => new Date(cost.paymentDate) >= startOfThisMonth)
       .reduce((sum: number, cost: LabourCost) => sum + Number(cost.amount), 0);
 
-    // Highest paid labourer calculation
+    // Retrieve all labour payments
+    const allLabourPayments = await prisma.labourPayment.findMany({
+      include: {
+        labourer: {
+          select: { name: true }
+        }
+      }
+    });
+
+    const totalLabourPaymentsThisMonth = allLabourPayments
+      .filter((pay) => new Date(pay.paymentDate) >= startOfThisMonth)
+      .reduce((sum, pay) => sum + Number(pay.amount), 0);
+
+    const labourAdvancesOutstanding = Math.max(
+      0,
+      allLabourPayments
+        .filter((pay) => pay.paymentType === 'Advance' || pay.paymentType === 'Adjustment')
+        .reduce((sum, pay) => sum + Number(pay.amount), 0)
+    );
+
+    // Labour payments by worker
+    const workerPaymentsMap: Record<string, number> = {};
+    allLabourPayments.forEach((pay) => {
+      const name = pay.labourer?.name || 'Legacy Worker';
+      workerPaymentsMap[name] = (workerPaymentsMap[name] || 0) + Number(pay.amount);
+    });
+    const labourPaymentsByWorker = Object.entries(workerPaymentsMap).map(([name, amount]) => ({
+      name,
+      amount,
+    })).sort((a, b) => b.amount - a.amount);
+
+    // Monthly payments trend (last 6 months)
+    const trendMap: Record<string, number> = {};
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(currentYear, currentMonth - i, 1);
+      const label = d.toLocaleDateString('en-IN', { month: 'short', year: '2-digit' });
+      trendMap[label] = 0;
+    }
+
+    allLabourPayments.forEach((pay) => {
+      const pDate = new Date(pay.paymentDate);
+      const label = pDate.toLocaleDateString('en-IN', { month: 'short', year: '2-digit' });
+      if (label in trendMap) {
+        trendMap[label] += Number(pay.amount);
+      }
+    });
+
+    const labourMonthlyTrend = Object.entries(trendMap).map(([month, amount]) => ({
+      month,
+      amount,
+    }));
+
+    // Highest paid labourer calculation (using payments table first, fallback to cost logs)
+    let highestPaidLabourer = 'None';
+    let highestPaidAmount = 0;
+
     const labourerPayments: Record<string, { name: string; amount: number }> = {};
-    allLabourCosts.forEach((cost: LabourCost) => {
-      const key = cost.labourerId || 'legacy';
-      const name = cost.carpenterName;
+    allLabourPayments.forEach((pay) => {
+      const key = pay.labourerId;
+      const name = pay.labourer?.name || 'Legacy Worker';
       if (!labourerPayments[key]) {
         labourerPayments[key] = { name, amount: 0 };
       }
-      labourerPayments[key].amount += Number(cost.amount);
+      labourerPayments[key].amount += Number(pay.amount);
     });
 
-    let highestPaidLabourer = 'None';
-    let highestPaidAmount = 0;
     Object.values(labourerPayments).forEach((data: { name: string; amount: number }) => {
       if (data.amount > highestPaidAmount) {
         highestPaidAmount = data.amount;
         highestPaidLabourer = `${data.name} (₹${data.amount.toLocaleString('en-IN')})`;
       }
     });
+
+    if (highestPaidAmount === 0) {
+      // Fallback to project labour cost logs
+      const costLabourerPayments: Record<string, { name: string; amount: number }> = {};
+      allLabourCosts.forEach((cost: LabourCost) => {
+        const key = cost.labourerId || 'legacy';
+        const name = cost.carpenterName;
+        if (!costLabourerPayments[key]) {
+          costLabourerPayments[key] = { name, amount: 0 };
+        }
+        costLabourerPayments[key].amount += Number(cost.amount);
+      });
+      Object.values(costLabourerPayments).forEach((data: { name: string; amount: number }) => {
+        if (data.amount > highestPaidAmount) {
+          highestPaidAmount = data.amount;
+          highestPaidLabourer = `${data.name} (₹${data.amount.toLocaleString('en-IN')})`;
+        }
+      });
+    }
+
     if (highestPaidAmount === 0) {
       highestPaidLabourer = 'None';
     }
 
-    const netCashPosition = globalCollectionsReceived - totalMaterialCost - globalTotalLabourCost;
+    const netCashPosition = globalCollectionsReceived - totalMaterialCost - (allLabourPayments.reduce((sum, p) => sum + Number(p.amount), 0) || globalTotalLabourCost);
 
     // Daily workforce aggregation for quick dashboard operations widget
     const todayISTStr = new Date().toLocaleDateString('en-US', {
@@ -413,7 +486,13 @@ export async function GET() {
         totalLabourCost: globalTotalLabourCost,
         labourCostThisMonth,
         highestPaidLabourer,
+        totalLabourPaymentsThisMonth,
+        labourAdvancesOutstanding,
       },
+      totalLabourPaymentsThisMonth,
+      labourAdvancesOutstanding,
+      labourPaymentsByWorker,
+      labourMonthlyTrend,
       // Workforce payload
       workforceToday,
       projectAllocations,

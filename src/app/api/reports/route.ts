@@ -175,6 +175,31 @@ export async function GET(req: NextRequest) {
     const totalProfit = totalQuoted - totalMaterialCost - totalLabourCost; // Profit = Quoted - Material - Labour
     const totalMarginPercentage = totalQuoted > 0 ? (totalProfit / totalQuoted) * 100 : 0;
 
+    // Fetch labour payments in that period
+    const labourPaymentsWhereClause: any = {};
+    if (parsedStart || parsedEnd) {
+      labourPaymentsWhereClause.paymentDate = {};
+      if (parsedStart) labourPaymentsWhereClause.paymentDate.gte = parsedStart;
+      if (parsedEnd) labourPaymentsWhereClause.paymentDate.lte = parsedEnd;
+    }
+
+    const labourPayments = await prisma.labourPayment.findMany({
+      where: labourPaymentsWhereClause,
+      include: {
+        labourer: {
+          select: {
+            name: true,
+            labourCode: true,
+          },
+        },
+      },
+      orderBy: {
+        paymentDate: 'desc',
+      },
+    });
+
+    const totalLabourPayments = labourPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+
     return NextResponse.json({
       summary: {
         totalProjects,
@@ -187,8 +212,19 @@ export async function GET(req: NextRequest) {
         totalLabourCost,
         totalProfit,
         totalMarginPercentage,
+        totalLabourPayments,
       },
       rows: reportRows,
+      labourPayments: labourPayments.map(p => ({
+        id: p.id,
+        paymentCode: p.paymentCode,
+        paymentDate: p.paymentDate,
+        amount: Number(p.amount),
+        paymentType: p.paymentType,
+        remarks: p.remarks,
+        labourerName: p.labourer?.name || 'Legacy Worker',
+        labourerCode: p.labourer?.labourCode || '',
+      })),
     }, {
       headers: {
         'Cache-Control': 'no-store, max-age=0',

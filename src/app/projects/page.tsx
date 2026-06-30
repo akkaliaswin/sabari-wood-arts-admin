@@ -66,18 +66,7 @@ function ProjectsContent() {
     'Cancelled',
   ];
 
-  const projectTypes = [
-    'Bed',
-    'Wardrobe',
-    'Dining Table',
-    'Kitchen',
-    'Door',
-    'Window',
-    'TV Unit',
-    'Interior',
-    'Full Furnishing',
-    'Custom Woodwork',
-  ];
+  const [projectTypes, setProjectTypes] = useState<string[]>([]);
 
   useEffect(() => {
     fetchProjects();
@@ -85,7 +74,21 @@ function ProjectsContent() {
 
   useEffect(() => {
     fetchClientsShort();
+    fetchProjectTypes();
   }, []);
+
+  const fetchProjectTypes = async () => {
+    try {
+      const res = await fetch(`/api/settings/work-item-types?t=${Date.now()}`);
+      if (res.ok) {
+        const data = await res.json();
+        const activeTypes = data.filter((t: any) => !t.isDisabled).map((t: any) => t.name);
+        setProjectTypes(activeTypes);
+      }
+    } catch (err) {
+      console.error('Failed to load project categories:', err);
+    }
+  };
 
   useEffect(() => {
     if (prefillClientId) {
@@ -144,7 +147,7 @@ function ProjectsContent() {
           projectType: projectType || null,
           projectLocation: projectLocation.trim() || null,
           status,
-          quotedAmount: quotedAmount ? Number(quotedAmount) : 0,
+          quotedAmount: quotedAmount ? Number(quotedAmount) : null,
           startDate: startDate || null,
           expectedCompletionDate: expectedCompletionDate || null,
           notes: notes.trim() || null,
@@ -272,7 +275,7 @@ function ProjectsContent() {
 
             <div className="form-row">
               <div className="form-group">
-                <label className="form-label">Quoted Amount (INR) *</label>
+                <label className="form-label">Quoted Amount (INR)</label>
                 <input
                   type="number"
                   className="form-control"
@@ -280,7 +283,6 @@ function ProjectsContent() {
                   value={quotedAmount}
                   onChange={(e) => setQuotedAmount(e.target.value)}
                   disabled={formSubmitting}
-                  required
                 />
               </div>
               <div className="form-group">
@@ -460,12 +462,12 @@ function ProjectsContent() {
                         {project.status}
                       </span>
                     </td>
-                    <td>{formatCurrency(project.quotedAmount)}</td>
+                    <td>{project.quotedAmount !== null && project.quotedAmount !== undefined ? formatCurrency(project.quotedAmount) : 'Not Yet Finalized'}</td>
                     <td style={{ color: 'var(--success)', fontWeight: '500' }}>
                       {formatCurrency(project.receivedAmount)}
                     </td>
-                    <td style={{ color: project.pendingCollection > 0 ? 'var(--warning)' : 'var(--success)', fontWeight: '500' }}>
-                      {project.pendingCollection > 0 ? formatCurrency(project.pendingCollection) : '✅ Paid in Full'}
+                    <td style={{ color: project.quotedAmount !== null && project.quotedAmount !== undefined && project.pendingCollection > 0 ? 'var(--warning)' : 'var(--success)', fontWeight: '500' }}>
+                      {project.quotedAmount !== null && project.quotedAmount !== undefined ? (project.pendingCollection > 0 ? formatCurrency(project.pendingCollection) : '✅ Paid in Full') : '—'}
                     </td>
                     <td style={{ textAlign: 'right' }}>
                       <Link href={`/projects/${project.id}`} className="btn btn-secondary btn-sm">
@@ -503,7 +505,7 @@ function ProjectsContent() {
                 <div style={{ marginTop: '10px', paddingTop: '8px', borderTop: '1px dashed var(--border)' }}>
                   <div className="mobile-list-row">
                     <span>Quoted Amt:</span>
-                    <span>{formatCurrency(project.quotedAmount)}</span>
+                    <span>{project.quotedAmount !== null && project.quotedAmount !== undefined ? formatCurrency(project.quotedAmount) : 'Not Yet Finalized'}</span>
                   </div>
                   <div className="mobile-list-row">
                     <span>Received:</span>
@@ -511,8 +513,8 @@ function ProjectsContent() {
                   </div>
                   <div className="mobile-list-row">
                     <span>Balance Due:</span>
-                    <span style={{ color: project.pendingCollection > 0 ? 'var(--warning)' : 'var(--success)' }}>
-                      {project.pendingCollection > 0 ? formatCurrency(project.pendingCollection) : 'Paid in Full'}
+                    <span style={{ color: project.quotedAmount !== null && project.quotedAmount !== undefined && project.pendingCollection > 0 ? 'var(--warning)' : 'var(--success)' }}>
+                      {project.quotedAmount !== null && project.quotedAmount !== undefined ? (project.pendingCollection > 0 ? formatCurrency(project.pendingCollection) : 'Paid in Full') : '—'}
                     </span>
                   </div>
                 </div>

@@ -29,6 +29,18 @@ interface ReportSummary {
   totalLabourCost: number;
   totalProfit: number;
   totalMarginPercentage: number;
+  totalLabourPayments?: number;
+}
+
+interface ReportLabourPayment {
+  id: string;
+  paymentCode: string;
+  paymentDate: string;
+  amount: number;
+  paymentType: string;
+  remarks: string | null;
+  labourerName: string;
+  labourerCode: string;
 }
 
 interface DropdownItem {
@@ -43,7 +55,7 @@ interface ProjectDropdownItem {
 }
 
 export default function ReportsPage() {
-  const [reportData, setReportData] = useState<{ summary: ReportSummary; rows: ReportRow[] } | null>(null);
+  const [reportData, setReportData] = useState<{ summary: ReportSummary; rows: ReportRow[]; labourPayments?: ReportLabourPayment[] } | null>(null);
   const [clients, setClients] = useState<DropdownItem[]>([]);
   const [projects, setProjects] = useState<ProjectDropdownItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -90,7 +102,7 @@ export default function ReportsPage() {
     try {
       setLoading(true);
       setError('');
-      
+
       const params = new URLSearchParams();
       if (startDate) params.append('startDate', startDate);
       if (endDate) params.append('endDate', endDate);
@@ -271,6 +283,13 @@ export default function ReportsPage() {
               </div>
             </div>
 
+            <div className="stat-card" style={{ borderLeft: '4px solid var(--success)' }}>
+              <div className="stat-label">Labour Payments Disbursed</div>
+              <div className="stat-value" style={{ color: 'var(--success)' }}>
+                {formatCurrency(reportData.summary.totalLabourPayments || 0)}
+              </div>
+            </div>
+
             <div className="stat-card" style={{ background: 'var(--primary-light)', borderLeft: '4px solid var(--success)', gridColumn: 'span 2' }}>
               <div className="stat-label" style={{ color: 'var(--primary)', fontWeight: 'bold' }}>Profit</div>
               <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap', marginTop: '4px' }}>
@@ -398,6 +417,70 @@ export default function ReportsPage() {
                   </div>
                 </>
               )}
+            </div>
+          )}
+
+          {/* Section: Labour Cost & Payments Summary */}
+          {reportData.labourPayments && reportData.labourPayments.length > 0 && (
+            <div style={{ marginTop: '32px', borderTop: '2px solid var(--border)', paddingTop: '24px' }}>
+              <h2 style={{ fontSize: '1.25rem', marginBottom: '16px', color: 'var(--text-primary)' }}>
+                💰 Labour Disbursals Ledger ({reportData.labourPayments.length} Entries)
+              </h2>
+              
+              {/* Desktop Table View */}
+              <div className="table-container" style={{ display: 'none' }}>
+                <table style={{ display: 'table' }}>
+                  <thead>
+                    <tr>
+                      <th>Payment Code</th>
+                      <th>Worker Code</th>
+                      <th>Worker Name</th>
+                      <th>Date</th>
+                      <th>Type</th>
+                      <th>Remarks</th>
+                      <th style={{ textAlign: 'right' }}>Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {reportData.labourPayments.map((pay) => (
+                      <tr key={pay.id}>
+                        <td><strong style={{ color: 'var(--primary)' }}>{pay.paymentCode}</strong></td>
+                        <td>{pay.labourerCode}</td>
+                        <td><strong>{pay.labourerName}</strong></td>
+                        <td>{new Date(pay.paymentDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</td>
+                        <td>
+                          <span className="badge badge-pending">
+                            {pay.paymentType}
+                          </span>
+                        </td>
+                        <td>{pay.remarks || '—'}</td>
+                        <td style={{ textAlign: 'right', fontWeight: '600', color: pay.amount < 0 ? 'var(--success)' : 'var(--text-primary)' }}>
+                          {formatCurrency(pay.amount)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Mobile List View */}
+              <div className="mobile-list-container">
+                {reportData.labourPayments.map((pay) => (
+                  <div key={pay.id} className="mobile-list-card" style={{ borderLeft: '4px solid var(--success)' }}>
+                    <div className="mobile-list-header">
+                      <div>
+                        <div className="mobile-list-title">{formatCurrency(pay.amount)}</div>
+                        <div className="mobile-list-subtitle">{pay.labourerName} ({pay.labourerCode})</div>
+                      </div>
+                      <span className="badge badge-pending">{pay.paymentType}</span>
+                    </div>
+                    <div style={{ marginTop: '8px', borderTop: '1px dashed var(--border)', paddingTop: '6px', fontSize: '0.85rem' }}>
+                      <div><strong>Date:</strong> {new Date(pay.paymentDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</div>
+                      <div><strong>Remarks:</strong> {pay.remarks || '—'}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>

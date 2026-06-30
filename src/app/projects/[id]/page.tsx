@@ -152,7 +152,8 @@ export default function ProjectDetailPage({
   const [matName, setMatName] = useState('');
   const [matVendor, setMatVendor] = useState('');
   const [matQty, setMatQty] = useState('1');
-  const [matUnit, setMatUnit] = useState('piece');
+  const [matUnit, setMatUnit] = useState('Piece');
+  const [customUnit, setCustomUnit] = useState('');
   const [matAmount, setMatAmount] = useState('');
   const [matBill, setMatBill] = useState('');
   const [matRemarks, setMatRemarks] = useState('');
@@ -422,7 +423,7 @@ export default function ProjectDetailPage({
           materialName: matName.trim(),
           vendor: matVendor.trim() || null,
           quantity: Number(matQty),
-          unit: matUnit || null,
+          unit: matUnit === 'Custom' ? (customUnit.trim() || null) : (matUnit || null),
           amount: Number(matAmount),
           billNumber: matBill.trim() || null,
           remarks: matRemarks.trim() || null,
@@ -434,6 +435,8 @@ export default function ProjectDetailPage({
       setMatName('');
       setMatVendor('');
       setMatQty('1');
+      setMatUnit('Piece');
+      setCustomUnit('');
       setMatAmount('');
       setMatBill('');
       setMatRemarks('');
@@ -610,7 +613,7 @@ export default function ProjectDetailPage({
       'Completed',
     ];
     const currentIndex = steps.indexOf(currentStatus);
-    
+
     return (
       <div className="progress-flow-container" style={{
         display: 'flex',
@@ -625,13 +628,13 @@ export default function ProjectDetailPage({
       }}>
         {steps.map((step, idx) => {
           let statusStyle = { color: 'var(--text-muted)', border: '1px solid var(--border)', background: 'white' };
-          
+
           if (step === currentStatus) {
             statusStyle = { color: 'white', border: '1px solid var(--primary)', background: 'var(--primary)' };
           } else if (currentIndex !== -1 && idx < currentIndex) {
             statusStyle = { color: 'var(--success)', border: '1px solid var(--success)', background: '#eafbe7' };
           }
-          
+
           return (
             <div key={step} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <div style={{
@@ -658,7 +661,7 @@ export default function ProjectDetailPage({
         {stages.map((s, idx) => {
           const active = s === itemStatus;
           return (
-            <span key={s} style={{ 
+            <span key={s} style={{
               fontWeight: active ? 'bold' : 'normal',
               color: active ? 'var(--primary)' : 'var(--text-muted)'
             }}>
@@ -678,52 +681,79 @@ export default function ProjectDetailPage({
         </Link>
       </div>
 
-      {renderProgressFlow(project.status)}
-
       <div className="page-title-section">
         <div>
           <span className="badge badge-pending" style={{ marginBottom: '4px' }}>{project.projectCode}</span>
           <h1 className="page-title">{project.projectName}</h1>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginTop: '2px' }}>
-            Client:{' '}
-            <Link href={`/clients/${project.client.id}`} style={{ fontWeight: '600', color: 'var(--primary)' }}>
-              {project.client.name}
-            </Link>
-          </p>
         </div>
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-          <select
-            className="form-control"
-            value={status}
-            onChange={(e) => handleUpdateProjectStatus(e.target.value)}
-            style={{ width: 'auto', minHeight: '38px', height: '38px', padding: '6px 24px 6px 12px', fontSize: '0.85rem' }}
-          >
-            {statuses.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
           <button onClick={handleSoftDeleteProject} className="btn btn-danger btn-sm" style={{ minHeight: '38px', height: '38px' }}>
-            🗑️ Archive
+            🗑️ Archive Project
           </button>
+        </div>
+      </div>
+
+      {/* Project Overview details card */}
+      <div className="card" style={{ padding: '20px', marginBottom: '24px' }}>
+        <h3 style={{ marginBottom: '16px', borderBottom: '1px solid var(--border)', paddingBottom: '8px' }}>Project Overview</h3>
+        <div className="detail-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
+          <div className="detail-item">
+            <span className="detail-label">Client Name</span>
+            <span className="detail-value">
+              <Link href={`/clients/${project.client.id}`} style={{ fontWeight: '600', color: 'var(--primary)' }}>
+                {project.client.name}
+              </Link>
+            </span>
+          </div>
+          <div className="detail-item">
+            <span className="detail-label">Site/Installation Location</span>
+            <span className="detail-value">{project.projectLocation || '—'}</span>
+          </div>
+          <div className="detail-item">
+            <span className="detail-label">Work Type</span>
+            <span className="detail-value">{project.projectType || '—'}</span>
+          </div>
+          <div className="detail-item">
+            <span className="detail-label">Project Status</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
+              <span className={getStatusBadgeClass(project.status)}>
+                {project.status}
+              </span>
+              <select
+                className="form-control"
+                value={status}
+                onChange={(e) => handleUpdateProjectStatus(e.target.value)}
+                style={{ width: 'auto', minHeight: '34px', height: '34px', padding: '4px 20px 4px 8px', fontSize: '0.8rem', marginBottom: 0 }}
+              >
+                {statuses.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div className="detail-item" style={{ gridColumn: 'span 2' }}>
+            <span className="detail-label">Project Scope Notes / Description</span>
+            <span className="detail-value" style={{ whiteSpace: 'pre-wrap', maxHeight: '120px', overflowY: 'auto' }}>{project.notes || '—'}</span>
+          </div>
         </div>
       </div>
 
       {/* Project Financial Summary Section */}
       <div className="card" style={{ borderLeft: '4px solid var(--primary)', marginBottom: '24px' }}>
-        <h3 style={{ marginBottom: '14px', fontSize: '1.05rem' }}>Financial Summary</h3>
+        <h3 style={{ marginBottom: '14px', fontSize: '1.05rem' }}>Financial Information</h3>
         <div className="stat-grid" style={{ border: 'none', padding: 0, boxShadow: 'none', margin: 0, gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))' }}>
           <div className="stat-card" style={{ padding: '12px' }}>
             <div className="stat-label">Quoted Amount</div>
-            <div className="stat-value">{formatCurrency(project.quotedAmount ?? 0)}</div>
+            <div className="stat-value">{project.quotedAmount !== null && project.quotedAmount !== undefined ? formatCurrency(project.quotedAmount) : 'Not Yet Finalized'}</div>
           </div>
-          <div className="stat-card" style={{ padding: '12px', borderLeft: (project.totalRevenue ?? 0) > (project.quotedAmount ?? 0) ? '3px solid var(--danger)' : '3px solid var(--primary)' }}>
+          <div className="stat-card" style={{ padding: '12px', borderLeft: (project.quotedAmount !== null && project.quotedAmount !== undefined && (project.totalRevenue ?? 0) > (project.quotedAmount ?? 0)) ? '3px solid var(--danger)' : '3px solid var(--primary)' }}>
             <div className="stat-label">Work Selling Price</div>
-            <div className="stat-value" style={{ color: (project.totalRevenue ?? 0) > (project.quotedAmount ?? 0) ? 'var(--danger)' : 'inherit' }}>
+            <div className="stat-value" style={{ color: (project.quotedAmount !== null && project.quotedAmount !== undefined && (project.totalRevenue ?? 0) > (project.quotedAmount ?? 0)) ? 'var(--danger)' : 'inherit' }}>
               {formatCurrency(project.totalRevenue ?? 0)}
             </div>
-            {(project.totalRevenue ?? 0) > (project.quotedAmount ?? 0) && (
+            {project.quotedAmount !== null && project.quotedAmount !== undefined && (project.totalRevenue ?? 0) > (project.quotedAmount ?? 0) && (
               <div style={{ fontSize: '0.7rem', color: 'var(--danger)', fontWeight: 'bold', marginTop: '2px' }}>
                 ⚠️ Over Quote by {formatCurrency((project.totalRevenue ?? 0) - (project.quotedAmount ?? 0))}
               </div>
@@ -735,9 +765,13 @@ export default function ProjectDetailPage({
               {formatCurrency(project.receivedAmount ?? 0)}
             </div>
           </div>
-          <div className="stat-card" style={{ padding: '12px', borderLeft: (project.pendingCollection ?? 0) > 0 ? '3px solid var(--warning)' : '3px solid var(--success)' }}>
+          <div className="stat-card" style={{ padding: '12px', borderLeft: (project.quotedAmount === null || project.quotedAmount === undefined) ? '3px solid var(--info)' : (project.pendingCollection ?? 0) > 0 ? '3px solid var(--warning)' : '3px solid var(--success)' }}>
             <div className="stat-label">Outstanding Amount</div>
-            {(project.pendingCollection ?? 0) > 0 ? (
+            {project.quotedAmount === null || project.quotedAmount === undefined ? (
+              <div className="stat-value" style={{ color: 'var(--info)', fontSize: '1.1rem', fontWeight: 'bold', paddingTop: '4px' }}>
+                Not Yet Finalized
+              </div>
+            ) : (project.pendingCollection ?? 0) > 0 ? (
               <div className="stat-value" style={{ color: 'var(--warning)' }}>
                 {formatCurrency(project.pendingCollection ?? 0)}
               </div>
@@ -766,13 +800,13 @@ export default function ProjectDetailPage({
               {formatCurrency(project.profit ?? 0)}
             </div>
             <div style={{ fontSize: '0.75rem', fontWeight: 'bold', color: (project.profit ?? 0) >= 0 ? 'var(--success)' : 'var(--danger)', marginTop: '2px' }}>
-              Margin: {(project.marginPercentage ?? 0).toFixed(1)}%
+              Margin: {project.quotedAmount !== null && project.quotedAmount !== undefined ? `${(project.marginPercentage ?? 0).toFixed(1)}%` : '—'}
             </div>
           </div>
         </div>
       </div>
 
-      {project.totalRevenue > project.quotedAmount && (
+      {project.quotedAmount !== null && project.quotedAmount !== undefined && project.totalRevenue > project.quotedAmount && (
         <div style={{
           display: 'flex',
           alignItems: 'center',
@@ -829,13 +863,13 @@ export default function ProjectDetailPage({
 
       {/* Tab Panel Content */}
       <div className="card" style={{ borderTop: 'none', borderRadius: '0 0 var(--radius) var(--radius)', marginTop: '-16px', padding: '20px' }}>
-        
+
         {/* Tab 1: Scope & Edit Details */}
         {activeTab === 'details' && (
           <div>
             <form onSubmit={handleUpdateProjectDetails}>
               <h3 style={{ marginBottom: '16px' }}>Project Information</h3>
-              
+
               <div className="form-row">
                 <div className="form-group">
                   <label className="form-label">Project Name *</label>
@@ -875,13 +909,12 @@ export default function ProjectDetailPage({
                   />
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Quoted Value (INR) *</label>
+                  <label className="form-label">Quoted Value (INR)</label>
                   <input
                     type="number"
                     className="form-control"
                     value={quotedAmount}
                     onChange={(e) => setQuotedAmount(e.target.value)}
-                    required
                   />
                 </div>
               </div>
@@ -926,7 +959,7 @@ export default function ProjectDetailPage({
               </button>
             </form>
 
-             {/* Scope Notes Log */}
+            {/* Scope Notes Log */}
             <div style={{ marginTop: '32px', paddingTop: '24px', borderTop: '1px solid var(--border)' }}>
               <h3 style={{ marginBottom: '12px' }}>Project Notes Log</h3>
               <div className="form-group">
@@ -1090,7 +1123,7 @@ export default function ProjectDetailPage({
                   />
                 </div>
               </div>
-              
+
               <div className="form-row">
                 <div className="form-group" style={{ flex: '2' }}>
                   <label className="form-label">Work Description / Details</label>
@@ -1245,15 +1278,33 @@ export default function ProjectDetailPage({
                 </div>
                 <div className="form-group">
                   <label className="form-label">Unit</label>
-                  <input
-                    type="text"
+                  <select
                     className="form-control"
-                    placeholder="e.g. piece, kg, sheet, bag"
                     value={matUnit}
                     onChange={(e) => setMatUnit(e.target.value)}
-                  />
+                  >
+                    {['Nos', 'Kg', 'Gram', 'Litre', 'ml', 'Feet', 'Sq Ft', 'Cubic Ft', 'Sheet', 'Box', 'Bundle', 'Meter', 'Piece', 'Roll', 'Custom'].map(opt => (
+                      <option key={opt} value={opt}>{opt}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
+
+              {matUnit === 'Custom' && (
+                <div className="form-row">
+                  <div className="form-group">
+                    <label className="form-label">Custom Unit Name *</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      placeholder="e.g. Bag, Litre, etc."
+                      value={customUnit}
+                      onChange={(e) => setCustomUnit(e.target.value)}
+                      required
+                    />
+                  </div>
+                </div>
+              )}
 
               <div className="form-row">
                 <div className="form-group">
@@ -1664,7 +1715,7 @@ export default function ProjectDetailPage({
                 });
                 if (!res.ok) throw new Error('Failed to register labourer');
                 const data = await res.json();
-                
+
                 // Add to list and auto-select
                 setLabourersList(prev => [data, ...prev]);
                 setSelectedLabourerId(data.id);

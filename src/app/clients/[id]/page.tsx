@@ -24,6 +24,7 @@ interface ClientDetail {
   referredBy: string | null;
   remarks: string | null;
   totalBusinessValue: number;
+  paymentStatus: string;
   projects: Project[];
   financialSummary?: {
     totalProjectValue: number;
@@ -169,6 +170,26 @@ export default function ClientDetailPage({
     return `badge badge-${status.toLowerCase().replace(/ /g, '-')}`;
   };
 
+  const getPaymentStatusBadge = (status: string) => {
+    let bg = '#f3f4f6';
+    let fg = '#4b5563';
+    if (status === 'Pending') {
+      bg = 'var(--warning-light)';
+      fg = 'var(--warning)';
+    } else if (status === 'Partially Paid') {
+      bg = 'var(--info-light)';
+      fg = 'var(--info)';
+    } else if (status === 'Paid Full') {
+      bg = 'var(--success-light)';
+      fg = 'var(--success)';
+    }
+    return (
+      <span className="badge" style={{ backgroundColor: bg, color: fg }}>
+        {status}
+      </span>
+    );
+  };
+
   if (loading) {
     return (
       <div className="empty-state">
@@ -199,7 +220,10 @@ export default function ClientDetailPage({
 
       <div className="page-title-section">
         <div>
-          <span className="badge badge-pending" style={{ marginBottom: '4px' }}>{client.clientCode}</span>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '4px' }}>
+            <span className="badge badge-pending">{client.clientCode}</span>
+            {getPaymentStatusBadge(client.paymentStatus)}
+          </div>
           <h1 className="page-title">{client.name}</h1>
         </div>
         <div style={{ display: 'flex', gap: '8px' }}>
@@ -366,9 +390,13 @@ export default function ClientDetailPage({
                   {formatCurrency(client.financialSummary?.totalAmountReceived ?? 0)}
                 </div>
               </div>
-              <div className="stat-card" style={{ padding: '12px', borderLeft: (client.financialSummary?.outstandingAmount ?? 0) > 0 ? '3px solid var(--warning)' : '3px solid var(--success)' }}>
+              <div className="stat-card" style={{ padding: '12px', borderLeft: client.paymentStatus === 'No Projects' ? '3px solid var(--info)' : (client.financialSummary?.outstandingAmount ?? 0) > 0 ? '3px solid var(--warning)' : '3px solid var(--success)' }}>
                 <div className="stat-label">Outstanding Amount</div>
-                {(client.financialSummary?.outstandingAmount ?? 0) > 0 ? (
+                {client.paymentStatus === 'No Projects' ? (
+                  <div className="stat-value" style={{ color: 'var(--info)', fontSize: '1.1rem', fontWeight: 'bold', paddingTop: '4px' }}>
+                    No Projects
+                  </div>
+                ) : (client.financialSummary?.outstandingAmount ?? 0) > 0 ? (
                   <div className="stat-value" style={{ color: 'var(--warning)' }}>
                     {formatCurrency(client.financialSummary?.outstandingAmount ?? 0)}
                   </div>
